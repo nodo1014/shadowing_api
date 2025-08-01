@@ -1,0 +1,20 @@
+
+# restful api 
+client : 
+미디어 경로
+start_time
+end_time
+text_eng : 영문 자막
+text_kor : 번역
+note : 문장 설명
+keywords : 영문 자막 중, 핵심 키워즈
+text_eng_blank : text_eng 에서 keywords 에 포함된 철자를 알파벳 숫자에 비례하여 ___ 처리.
+clipping_type : 1,2
+individual_clip : true/false 개별 클립 생성 여부
+
+
+clipping_type
+1 : 무자막 x 2회 + 영한자막 x 2회
+2 : 무자막 x 2회 + text_eng_blank x 2회 + 영한자막+상단 note x 2회
+
+* 단일 클립, 배치 클립 대응 필요.

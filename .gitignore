@@ -1,0 +1,69 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Output directories
+output/
+uploads/
+temp/
+media_library/
+
+# Logs
+*.log
+logs/
+server.log
+
+# Test files
+test_*.mp4
+test_*.html
+web_test.html
+TEST_REPORT.md
+
+# Media files (too large for git)
+media/*.mp4
+media/*.avi
+media/*.mov
+media/*.mkv
+media/*.srt
+
+# Keep media directory structure
+!media/.gitkeep
+
+# Claude AI
+.claude/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Excel files
+*.xlsx
+*.xls
+
+# Subtitle files in output
+output/**/*.ass
+output/**/*.srt

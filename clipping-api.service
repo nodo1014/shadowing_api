@@ -1,0 +1,32 @@
+[Unit]
+Description=Video Clipping API Service
+After=network.target redis.service
+
+[Service]
+Type=exec
+User=www-data
+Group=www-data
+WorkingDirectory=/home/kang/dev_amd/shadowing_maker_xls
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=/home/kang/dev_amd/shadowing_maker_xls/.env
+ExecStart=/home/kang/dev_amd/shadowing_maker_xls/venv/bin/gunicorn clipping_api:app \
+    --workers 4 \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --bind 0.0.0.0:8080 \
+    --access-logfile /var/log/clipping-api/access.log \
+    --error-logfile /var/log/clipping-api/error.log \
+    --timeout 300 \
+    --graceful-timeout 60
+
+Restart=always
+RestartSec=10
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/clipping-api /var/log/clipping-api /mnt/qnap
+
+[Install]
+WantedBy=multi-user.target

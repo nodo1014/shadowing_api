@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Clipping Service</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Video Clipping Service</h1>
+            <p>전문 비디오 클리핑 서비스 - 자막과 함께 학습용 클립을 생성하세요</p>
+        </header>
+
+        <main>
+            <!-- 클리핑 모드 선택 -->
+            <div class="mode-selector">
+                <button class="mode-btn active" data-mode="single">단일 클립</button>
+                <button class="mode-btn" data-mode="batch">배치 클립</button>
+            </div>
+
+            <!-- 단일 클립 폼 -->
+            <div id="single-clip-form" class="clip-form active">
+                <h2>단일 클립 생성</h2>
+                
+                <div class="form-group">
+                    <label for="media-path">미디어 파일 경로 *</label>
+                    <input type="text" id="media-path" placeholder="/mnt/qnap/media_eng/indexed_media/video.mp4" required>
+                    <small class="help-text">허용된 디렉토리 내의 파일 경로를 입력하세요</small>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="start-time">시작 시간 (초) *</label>
+                        <input type="number" id="start-time" step="0.1" min="0" placeholder="10.5" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="end-time">종료 시간 (초) *</label>
+                        <input type="number" id="end-time" step="0.1" min="0" placeholder="15.5" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="text-eng">영문 자막 *</label>
+                    <textarea id="text-eng" rows="2" placeholder="Hello, how are you?" required></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="text-kor">한국어 번역 *</label>
+                    <textarea id="text-kor" rows="2" placeholder="안녕하세요, 어떻게 지내세요?" required></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="note">문장 설명</label>
+                    <textarea id="note" rows="2" placeholder="인사하기"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="keywords">키워드 (쉼표로 구분)</label>
+                    <input type="text" id="keywords" placeholder="Hello, how">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="clipping-type">클리핑 타입 *</label>
+                        <select id="clipping-type">
+                            <option value="1">Type 1: 기본 (무자막 + 영한자막)</option>
+                            <option value="2">Type 2: 확장 (무자막 + 블랭크 + 영한자막+노트)</option>
+                        </select>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" id="individual-clips">
+                            개별 클립 저장
+                        </label>
+                    </div>
+                </div>
+
+                <button class="submit-btn" onclick="createSingleClip()">클립 생성</button>
+            </div>
+
+            <!-- 배치 클립 폼 -->
+            <div id="batch-clip-form" class="clip-form">
+                <h2>배치 클립 생성</h2>
+                
+                <div class="form-group">
+                    <label for="batch-media-path">미디어 파일 경로 *</label>
+                    <input type="text" id="batch-media-path" placeholder="/mnt/qnap/media_eng/indexed_media/video.mp4" required>
+                    <small class="help-text">허용된 디렉토리 내의 파일 경로를 입력하세요</small>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="batch-clipping-type">클리핑 타입 *</label>
+                        <select id="batch-clipping-type">
+                            <option value="1">Type 1: 기본 (무자막 + 영한자막)</option>
+                            <option value="2">Type 2: 확장 (무자막 + 블랭크 + 영한자막+노트)</option>
+                        </select>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" id="batch-individual-clips">
+                            개별 클립 저장
+                        </label>
+                    </div>
+                </div>
+
+                <div class="clips-container">
+                    <h3>클립 목록</h3>
+                    <div id="clips-list"></div>
+                    <button class="add-clip-btn" onclick="addClipEntry()">+ 클립 추가</button>
+                </div>
+
+                <button class="submit-btn" onclick="createBatchClips()">배치 클립 생성</button>
+            </div>
+
+            <!-- 작업 상태 -->
+            <div id="job-status" class="job-status hidden">
+                <h3>작업 상태</h3>
+                <div class="status-content">
+                    <div class="status-header">
+                        <span class="job-id"></span>
+                        <span class="status-badge"></span>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar"></div>
+                        <span class="progress-text">0%</span>
+                    </div>
+                    <div class="status-message"></div>
+                    <div class="action-buttons">
+                        <button class="download-btn hidden" onclick="downloadClip()">다운로드</button>
+                        <button class="cancel-btn" onclick="cancelJob()">취소</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 작업 목록 -->
+            <div class="job-list">
+                <h3>최근 작업</h3>
+                <div id="recent-jobs"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
