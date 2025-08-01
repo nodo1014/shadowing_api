@@ -195,8 +195,8 @@ ScaledBorderAndShadow: yes
     
     def _highlight_keywords(self, text: str, keywords: List[str]) -> str:
         """
-        Highlight keywords in text with yellow color using ASS color codes.
-        ASS color code for yellow: {\c&H00FFFF&}
+        Highlight keywords in text with orange color using ASS color codes.
+        ASS color code for orange: {\c&H0080FF&}
         Reset to white: {\c&HFFFFFF&}
         """
         if not keywords:
@@ -210,7 +210,7 @@ ScaledBorderAndShadow: yes
             # Case-insensitive replacement while preserving original case
             pattern = re.compile(re.escape(keyword), re.IGNORECASE)
             highlighted_text = pattern.sub(
-                lambda m: f'{{\\c&H00FFFF&}}{m.group()}{{\\c&HFFFFFF&}}',
+                lambda m: f'{{\\c&H0080FF&}}{m.group()}{{\\c&HFFFFFF&}}',
                 highlighted_text
             )
         
