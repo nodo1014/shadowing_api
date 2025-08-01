@@ -30,8 +30,21 @@ else
     exit 1
 fi
 
-# Using gunicorn with uvicorn workers
-$GUNICORN_CMD clipping_api:app \
+# SSL Configuration
+SSL_KEYFILE=${SSL_KEYFILE:-ssl/key.pem}
+SSL_CERTFILE=${SSL_CERTFILE:-ssl/cert.pem}
+USE_SSL=${USE_SSL:-false}
+
+# Check SSL files
+if [ "$USE_SSL" = "true" ]; then
+    if [ ! -f "$SSL_KEYFILE" ] || [ ! -f "$SSL_CERTFILE" ]; then
+        echo "Warning: SSL files not found ($SSL_KEYFILE, $SSL_CERTFILE). Running without SSL."
+        USE_SSL="false"
+    fi
+fi
+
+# Build gunicorn command
+GUNICORN_ARGS="clipping_api:app \
     --workers ${WORKERS:-4} \
     --worker-class uvicorn.workers.UvicornWorker \
     --bind ${HOST:-0.0.0.0}:${PORT:-8080} \
@@ -41,4 +54,17 @@ $GUNICORN_CMD clipping_api:app \
     --timeout 300 \
     --graceful-timeout 60 \
     --max-requests 1000 \
-    --max-requests-jitter 50
+    --max-requests-jitter 50"
+
+# Add SSL options if enabled
+if [ "$USE_SSL" = "true" ]; then
+    GUNICORN_ARGS="$GUNICORN_ARGS \
+        --keyfile $SSL_KEYFILE \
+        --certfile $SSL_CERTFILE"
+    echo "Starting with SSL enabled (https://)"
+else
+    echo "Starting without SSL (http://)"
+fi
+
+# Using gunicorn with uvicorn workers
+$GUNICORN_CMD $GUNICORN_ARGS --daemon

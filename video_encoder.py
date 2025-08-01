@@ -104,9 +104,10 @@ class VideoEncoder:
                     # Generate ASS file with only this subtitle, adjusted for clip timing
                     ass_generator = ASSGenerator()
                     clip_subtitle = matching_subtitle.copy()
-                    # Adjust timing to start at 0 and show for entire clip
-                    clip_subtitle['start_time'] = 0.0
-                    clip_subtitle['end_time'] = duration
+                    # Adjust timing relative to clip start (keep original duration)
+                    original_duration = clip_subtitle['end_time'] - clip_subtitle['start_time']
+                    clip_subtitle['start_time'] = clip_subtitle['start_time'] - padded_start
+                    clip_subtitle['end_time'] = clip_subtitle['start_time'] + original_duration
                     
                     # Generate both subtitles ASS file
                     ass_generator.generate_ass([clip_subtitle], temp_ass_file.name)
@@ -403,40 +404,84 @@ class VideoEncoder:
                 escaped_path = clip_path.replace('\\', '/').replace("'", "'\\''")
                 concat_file.write(f"file '{escaped_path}'\n")
                 
-                # Add freeze frame gap between clips (except after the last clip)
-                if i < len(clip_paths) - 1:
+                # Add freeze frame gap after each clip (including the last one)
+                if True:  # Always add gap, even after the last clip
                     # Create freeze frame from current clip's last frame
                     freeze_file = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
                     freeze_file.close()
                     temp_freeze_files.append(freeze_file.name)
                     
-                    # Create freeze frame from last frame of the clip
-                    freeze_cmd = [
+                    # Enhanced freeze frame creation with better compatibility
+                    # Step 1: Extract last frame as image
+                    last_frame_file = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+                    last_frame_file.close()
+                    temp_freeze_files.append(last_frame_file.name)
+                    
+                    extract_cmd = [
                         'ffmpeg', '-y',
-                        # Get the last 0.1 second of the video
-                        '-sseof', '-0.1',
+                        '-sseof', '-0.1',  # Get from 0.1 second before end
                         '-i', clip_path,
-                        # Generate silent audio
-                        '-f', 'lavfi',
-                        '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100:duration=' + str(gap_duration),
-                        # Create a video by looping the frames for gap_duration
-                        '-filter_complex', 
-                        f'[0:v]trim=0:0.04,loop={int(gap_duration*25)}:1:0,setpts=N/FRAME_RATE/TB,scale={width}:{height}[v]',
-                        '-map', '[v]',
-                        '-map', '1:a',
-                        '-t', str(gap_duration),
-                        '-c:v', 'libx264',
-                        '-preset', 'veryfast',
-                        '-crf', '18',
-                        '-pix_fmt', 'yuv420p',
-                        '-c:a', 'aac',
-                        '-b:a', '128k',
-                        '-ar', '44100',
-                        '-ac', '2',
-                        '-af', 'volume=0',  # Force complete silence
-                        '-r', '25',
-                        freeze_file.name
+                        '-vframes', '1',  # Extract single frame
+                        '-f', 'image2',
+                        last_frame_file.name
                     ]
+                    
+                    extract_result = subprocess.run(extract_cmd, capture_output=True, text=True)
+                    
+                    if extract_result.returncode == 0:
+                        # Step 2: Create silent WAV file
+                        silence_wav = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+                        silence_wav.close()
+                        temp_freeze_files.append(silence_wav.name)
+                        
+                        silence_cmd = [
+                            'ffmpeg', '-y',
+                            '-f', 'lavfi',
+                            '-i', f'anullsrc=channel_layout=stereo:sample_rate=44100:duration={gap_duration}',
+                            '-t', str(gap_duration),
+                            silence_wav.name
+                        ]
+                        
+                        silence_result = subprocess.run(silence_cmd, capture_output=True, text=True)
+                        
+                        # Step 3: Create video from still image with silent WAV
+                        freeze_cmd = [
+                            'ffmpeg', '-y',
+                            '-loop', '1',
+                            '-i', last_frame_file.name,
+                            '-i', silence_wav.name,
+                            '-t', str(gap_duration),
+                            '-vf', f'scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2',
+                            '-c:v', 'libx264',
+                            '-preset', 'veryfast',
+                            '-crf', '18',
+                            '-pix_fmt', 'yuv420p',
+                            '-c:a', 'aac',
+                            '-b:a', '128k',
+                            '-ar', '44100',
+                            '-ac', '2',
+                            '-shortest',
+                            freeze_file.name
+                        ]
+                    else:
+                        # Fallback: use direct method
+                        freeze_cmd = [
+                            'ffmpeg', '-y',
+                            '-sseof', '-0.1',
+                            '-i', clip_path,
+                            '-t', str(gap_duration),
+                            '-vf', f'select=\'eq(n\\,0)\',scale={width}:{height},setpts=N/TB',
+                            '-af', f'anullsrc=channel_layout=stereo:sample_rate=44100',
+                            '-c:v', 'libx264',
+                            '-preset', 'veryfast',
+                            '-crf', '18',
+                            '-pix_fmt', 'yuv420p',
+                            '-c:a', 'aac',
+                            '-b:a', '128k',
+                            '-ar', '44100',
+                            '-ac', '2',
+                            freeze_file.name
+                        ]
                     
                     print(f"[DEBUG] Creating freeze frame {i+1} with duration {gap_duration}s")
                     freeze_result = subprocess.run(freeze_cmd, capture_output=True, text=True)
@@ -446,43 +491,63 @@ class VideoEncoder:
                         concat_file.write(f"file '{freeze_escaped}'\n")
                         print(f"[DEBUG] Successfully created freeze frame: {freeze_file.name}")
                     else:
-                        print(f"[ERROR] Failed to create freeze frame")
-                        print(f"[ERROR] FFmpeg stderr: {freeze_result.stderr}")
-                        print(f"[ERROR] FFmpeg stdout: {freeze_result.stdout}")
-                        # Fallback: create black video with silent audio
-                        black_cmd = [
+                        print(f"[ERROR] Freeze frame creation failed: {freeze_result.stderr}")
+                        print(f"[ERROR] Command was: {' '.join(freeze_cmd)}")
+                        
+                        # Try one more time with a simpler method
+                        # Create silent WAV first
+                        simple_silence_wav = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+                        simple_silence_wav.close()
+                        temp_freeze_files.append(simple_silence_wav.name)
+                        
+                        simple_silence_cmd = [
                             'ffmpeg', '-y',
                             '-f', 'lavfi',
-                            '-i', f'color=c=black:s={width}x{height}:d={gap_duration}',
-                            '-f', 'lavfi', 
-                            '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100:duration=' + str(gap_duration),
+                            '-i', f'anullsrc=channel_layout=stereo:sample_rate=44100:duration={gap_duration}',
                             '-t', str(gap_duration),
+                            simple_silence_wav.name
+                        ]
+                        subprocess.run(simple_silence_cmd, capture_output=True, text=True)
+                        
+                        simple_freeze_cmd = [
+                            'ffmpeg', '-y',
+                            '-i', clip_path,
+                            '-i', simple_silence_wav.name,
+                            '-ss', '0',  # Take first frame instead
+                            '-t', str(gap_duration),
+                            '-vf', f'select=\'eq(n\\,0)\',scale={width}:{height}',
+                            '-map', '0:v',
+                            '-map', '1:a',
                             '-c:v', 'libx264',
                             '-preset', 'veryfast',
                             '-crf', '18',
                             '-pix_fmt', 'yuv420p',
                             '-c:a', 'aac',
                             '-b:a', '128k',
-                            '-ar', '44100',
-                            '-ac', '2',
-                            '-af', 'volume=0',  # Force complete silence
-                            '-shortest',
                             freeze_file.name
                         ]
-                        black_result = subprocess.run(black_cmd, capture_output=True, text=True)
-                        if black_result.returncode == 0:
+                        
+                        simple_result = subprocess.run(simple_freeze_cmd, capture_output=True, text=True)
+                        if simple_result.returncode == 0:
                             freeze_escaped = freeze_file.name.replace('\\', '/').replace("'", "'\\''")
                             concat_file.write(f"file '{freeze_escaped}'\n")
+                            print(f"[DEBUG] Successfully created freeze frame with simple method")
+                        else:
+                            print(f"[ERROR] All freeze frame methods failed, skipping gap")
             
             concat_file.close()
             
-            # Build FFmpeg concat command
+            # Build FFmpeg concat command with audio re-encoding
             cmd = [
                 'ffmpeg', '-y',
                 '-f', 'concat',
                 '-safe', '0',
                 '-i', concat_file.name,
-                '-c', 'copy',
+                '-c:v', 'copy',
+                '-c:a', 'aac',
+                '-b:a', '128k',
+                '-ar', '44100',
+                '-ac', '2',
                 output_path
             ]
             
