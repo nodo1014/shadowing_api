@@ -320,6 +320,109 @@ class VideoEncoder:
         return True
     
     def _concatenate_clips(self, clip_paths: List[str], output_path: str, gap_duration: float = 0.5) -> bool:
+        """Concatenate multiple video clips with proper gaps between them"""
+        
+        if not clip_paths or len(clip_paths) == 0:
+            return False
+        
+        # Single clip - no gaps needed  
+        if len(clip_paths) == 1:
+            import shutil
+            shutil.copy2(clip_paths[0], output_path)
+            return True
+        
+        print(f"[DEBUG] Concatenating {len(clip_paths)} clips with {gap_duration}s gaps")
+        
+        # No gaps - use simple concat
+        if gap_duration <= 0:
+            concat_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
+            try:
+                for clip_path in clip_paths:
+                    escaped_path = clip_path.replace('\\', '/').replace("'", "'\\''")
+                    concat_file.write(f"file '{escaped_path}'\n")
+                concat_file.close()
+                
+                cmd = ['ffmpeg', '-y', '-f', 'concat', '-safe', '0', '-i', concat_file.name, '-c', 'copy', output_path]
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                return result.returncode == 0
+            finally:
+                if os.path.exists(concat_file.name):
+                    os.unlink(concat_file.name)
+        
+        # Use filter_complex for proper audio/video sync
+        try:
+            # Build complex filter
+            inputs = []
+            filter_parts = []
+            
+            # Add inputs
+            for clip_path in clip_paths:
+                inputs.extend(['-i', clip_path])
+            
+            # Build filter for each clip and gap
+            concat_inputs = ""
+            
+            for i in range(len(clip_paths)):
+                # Normalize each clip's timestamps
+                filter_parts.append(f"[{i}:v]setpts=PTS-STARTPTS[v{i}];")
+                filter_parts.append(f"[{i}:a]asetpts=PTS-STARTPTS[a{i}];")
+                
+                # Add clip to concat
+                concat_inputs += f"[v{i}][a{i}]"
+                
+                # Add gap after each clip except the last
+                if i < len(clip_paths) - 1:
+                    # Create freeze frame from last frame of current clip
+                    filter_parts.append(
+                        f"[{i}:v]trim=start_frame=-1,setpts=0,loop={int(gap_duration*25)}:1:0,fps=25[gapv{i}];"
+                    )
+                    # Create silent audio for gap
+                    filter_parts.append(
+                        f"anullsrc=channel_layout=stereo:sample_rate=44100:duration={gap_duration}[gapa{i}];"
+                    )
+                    # Add gap to concat
+                    concat_inputs += f"[gapv{i}][gapa{i}]"
+            
+            # Concatenate everything
+            total_segments = len(clip_paths) + (len(clip_paths) - 1)  # clips + gaps
+            filter_parts.append(f"{concat_inputs}concat=n={total_segments}:v=1:a=1[outv][outa]")
+            
+            filter_complex = "".join(filter_parts)
+            
+            # Build FFmpeg command
+            cmd = ['ffmpeg', '-y']
+            cmd.extend(inputs)
+            cmd.extend([
+                '-filter_complex', filter_complex,
+                '-map', '[outv]',
+                '-map', '[outa]',
+                '-c:v', 'libx264',
+                '-preset', 'fast',
+                '-crf', '18',
+                '-pix_fmt', 'yuv420p',
+                '-c:a', 'aac',
+                '-b:a', '128k',
+                '-ar', '44100',
+                '-ac', '2',
+                '-movflags', '+faststart',
+                output_path
+            ])
+            
+            print(f"[DEBUG] Running concatenation with filter_complex")
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                print(f"[ERROR] Concatenation failed: {result.stderr}")
+                return False
+            
+            print(f"[SUCCESS] Created output with {len(clip_paths)} clips and {len(clip_paths)-1} gaps")
+            return True
+            
+        except Exception as e:
+            print(f"[ERROR] Exception in concatenation: {str(e)}")
+            return False
+    
+    def _concatenate_clips_old(self, clip_paths: List[str], output_path: str, gap_duration: float = 0.5) -> bool:
         """Concatenate multiple video clips with gaps between them"""
         
         print(f"[DEBUG] _concatenate_clips called with {len(clip_paths)} clips, gap_duration={gap_duration}")
@@ -371,100 +474,76 @@ class VideoEncoder:
                 if os.path.exists(concat_file.name):
                     os.unlink(concat_file.name)
         
-        # Create temp files list for cleanup
+        # Use filter_complex to create proper gaps
+        if gap_duration > 0:
+            print(f"[DEBUG] Creating concatenation with {gap_duration}s gaps using filter_complex")
+            
+            # Build filter_complex command
+            filter_parts = []
+            concat_inputs = ""
+            
+            # Create input for each clip and gap
+            for i, clip_path in enumerate(clip_paths):
+                # Video and audio from clip
+                filter_parts.append(f"[{i}:v]setpts=PTS-STARTPTS[v{i}];")
+                filter_parts.append(f"[{i}:a]asetpts=PTS-STARTPTS[a{i}];")
+                
+                # Add to concat list
+                concat_inputs += f"[v{i}][a{i}]"
+                
+                # Add gap after each clip except the last
+                if i < len(clip_paths) - 1:
+                    gap_idx = len(clip_paths) + i
+                    # Create freeze frame from last frame
+                    filter_parts.append(f"[{i}:v]trim=start_frame=-1,loop={int(gap_duration*25)}:1:0,setpts=N/FRAME_RATE/TB[gap_v{i}];")
+                    # Create silent audio
+                    filter_parts.append(f"anullsrc=channel_layout=stereo:sample_rate=44100:duration={gap_duration}[gap_a{i}];")
+                    # Add gap to concat list
+                    concat_inputs += f"[gap_v{i}][gap_a{i}]"
+            
+            # Concatenate all
+            num_segments = len(clip_paths) + (len(clip_paths) - 1)  # clips + gaps
+            filter_parts.append(f"{concat_inputs}concat=n={num_segments}:v=1:a=1[outv][outa]")
+            
+            filter_complex = "".join(filter_parts)
+            
+            # Build ffmpeg command
+            cmd = ['ffmpeg', '-y']
+            
+            # Add all input clips
+            for clip_path in clip_paths:
+                cmd.extend(['-i', clip_path])
+            
+            # Add filter complex
+            cmd.extend([
+                '-filter_complex', filter_complex,
+                '-map', '[outv]',
+                '-map', '[outa]',
+                '-c:v', 'libx264',
+                '-preset', 'fast',
+                '-crf', '18',
+                '-pix_fmt', 'yuv420p',
+                '-c:a', 'aac',
+                '-b:a', '128k',
+                '-ar', '44100',
+                '-ac', '2',
+                output_path
+            ])
+            
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                print(f"[ERROR] Filter complex concatenation failed: {result.stderr}")
+                print(f"[DEBUG] Command was: {' '.join(cmd)}")
+                return False
+            
+            print(f"[SUCCESS] Created concatenated video with gaps")
+            return True
+            
+        # Original code for no gaps
         temp_freeze_files = []
         
         try:
-            # Get video info from first clip
-            probe_cmd = [
-                'ffprobe', '-v', 'quiet', '-print_format', 'json',
-                '-show_streams', clip_paths[0]
-            ]
-            
-            probe_result = subprocess.run(probe_cmd, capture_output=True, text=True)
-            if probe_result.returncode != 0:
-                print(f"Failed to probe video: {probe_result.stderr}")
-                return False
-            
-            import json
-            video_info = json.loads(probe_result.stdout)
-            video_stream = next(s for s in video_info['streams'] if s['codec_type'] == 'video')
-            width = video_stream['width']
-            height = video_stream['height']
-            
-            # Create concat file
-            concat_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
-            
-            # Write file paths to concat file with freeze frame gaps
-            for i, clip_path in enumerate(clip_paths):
-                # Escape path for concat demuxer
-                escaped_path = clip_path.replace('\\', '/').replace("'", "'\\''")
-                concat_file.write(f"file '{escaped_path}'\n")
-                
-                # Add freeze frame gap between clips (except after the last clip)
-                if i < len(clip_paths) - 1:
-                    # Create freeze frame from current clip's last frame
-                    freeze_file = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
-                    freeze_file.close()
-                    temp_freeze_files.append(freeze_file.name)
-                    
-                    # Create freeze frame from last frame of the clip
-                    freeze_cmd = [
-                        'ffmpeg', '-y',
-                        # Get the last 0.1 second of the video
-                        '-sseof', '-0.1',
-                        '-i', clip_path,
-                        # Generate silent audio
-                        '-f', 'lavfi',
-                        '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
-                        # Create a video by looping the frames for gap_duration
-                        '-filter_complex', 
-                        f'[0:v]trim=0:0.04,loop={int(gap_duration*25)}:1:0,setpts=N/FRAME_RATE/TB,scale={width}:{height}[v]',
-                        '-map', '[v]',
-                        '-map', '1:a',
-                        '-t', str(gap_duration),
-                        '-c:v', 'libx264',
-                        '-preset', 'veryfast',
-                        '-crf', '18',
-                        '-pix_fmt', 'yuv420p',
-                        '-c:a', 'aac',
-                        '-b:a', '128k',
-                        '-r', '25',
-                        freeze_file.name
-                    ]
-                    
-                    print(f"[DEBUG] Creating freeze frame {i+1} with duration {gap_duration}s")
-                    freeze_result = subprocess.run(freeze_cmd, capture_output=True, text=True)
-                    
-                    if freeze_result.returncode == 0:
-                        freeze_escaped = freeze_file.name.replace('\\', '/').replace("'", "'\\''")
-                        concat_file.write(f"file '{freeze_escaped}'\n")
-                        print(f"[DEBUG] Successfully created freeze frame: {freeze_file.name}")
-                    else:
-                        print(f"[ERROR] Failed to create freeze frame")
-                        print(f"[ERROR] FFmpeg stderr: {freeze_result.stderr}")
-                        print(f"[ERROR] FFmpeg stdout: {freeze_result.stdout}")
-                        # Fallback: create black video with silent audio
-                        black_cmd = [
-                            'ffmpeg', '-y',
-                            '-f', 'lavfi',
-                            '-i', f'color=c=black:s={width}x{height}:d={gap_duration}',
-                            '-f', 'lavfi', 
-                            '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
-                            '-t', str(gap_duration),
-                            '-c:v', 'libx264',
-                            '-preset', 'veryfast',
-                            '-crf', '18',
-                            '-pix_fmt', 'yuv420p',
-                            '-c:a', 'aac',
-                            '-b:a', '128k',
-                            '-shortest',
-                            freeze_file.name
-                        ]
-                        black_result = subprocess.run(black_cmd, capture_output=True, text=True)
-                        if black_result.returncode == 0:
-                            freeze_escaped = freeze_file.name.replace('\\', '/').replace("'", "'\\''")
-                            concat_file.write(f"file '{freeze_escaped}'\n")
             
             concat_file.close()
             

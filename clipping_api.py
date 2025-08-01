@@ -186,7 +186,7 @@ class ClippingRequest(BaseModel):
     note: Optional[str] = Field("", description="문장 설명")
     keywords: Optional[List[str]] = Field([], description="핵심 키워드 리스트 (Type 2에서 사용)")
     clipping_type: int = Field(1, ge=1, le=2, description="클리핑 타입 (1 또는 2)")
-    individual_clips: bool = Field(False, description="개별 클립 저장 여부")
+    individual_clips: bool = Field(True, description="개별 클립 저장 여부")
 
 
 class BatchClippingRequest(BaseModel):
@@ -194,7 +194,7 @@ class BatchClippingRequest(BaseModel):
     media_path: str = Field(..., description="미디어 파일 경로")
     clips: List[ClipData] = Field(..., description="클립 데이터 리스트")
     clipping_type: int = Field(1, ge=1, le=2, description="클리핑 타입 (1 또는 2)")
-    individual_clips: bool = Field(False, description="개별 클립 저장 여부")
+    individual_clips: bool = Field(True, description="개별 클립 저장 여부")
     
     @validator('media_path')
     def validate_media_path(cls, v):
