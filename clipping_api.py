@@ -5,7 +5,7 @@ Video Clipping RESTful API
 """
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, validator
@@ -25,6 +25,11 @@ import pickle
 
 from ass_generator import ASSGenerator
 from video_encoder import VideoEncoder
+from database import (
+    init_db, save_job_to_db, update_job_status, get_job_by_id,
+    get_recent_jobs, search_jobs, get_statistics, delete_job,
+    delete_jobs_bulk, cleanup_old_jobs, get_disk_usage
+)
 
 # 로깅 설정
 logging.basicConfig(
@@ -50,8 +55,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Static files serving
-app.mount("/static", StaticFiles(directory=".", html=True), name="static")
+# Serve frontend files
+from fastapi.staticfiles import StaticFiles
+app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
+app.mount("/admin", StaticFiles(directory=".", html=True), name="admin")
 
 # Redis 연결 설정 (운영 환경용)
 try:
@@ -77,6 +84,24 @@ executor = ThreadPoolExecutor(max_workers=int(os.getenv('MAX_WORKERS', 4)))
 
 # 작업 만료 시간 (24시간)
 JOB_EXPIRE_TIME = 86400
+
+def update_job_status_both(job_id: str, status: str, progress: int = None, 
+                          message: str = None, output_file: str = None, error_message: str = None):
+    """메모리와 데이터베이스 동시 업데이트 (multi-worker 지원)"""
+    # 메모리 업데이트 (현재 worker)
+    if job_id in job_status:
+        job_status[job_id]["status"] = status
+        if progress is not None:
+            job_status[job_id]["progress"] = progress
+        if message:
+            job_status[job_id]["message"] = message
+        if output_file:
+            job_status[job_id]["output_file"] = output_file
+        if error_message:
+            job_status[job_id]["error_message"] = error_message
+    
+    # 데이터베이스 업데이트 (모든 worker가 공유)
+    update_job_status(job_id, status, progress, output_file, error_message, message)
 
 # 디렉토리 설정
 OUTPUT_DIR = Path(os.getenv('OUTPUT_DIR', 'output'))
@@ -142,8 +167,7 @@ class ClipData(BaseModel):
     text_eng: str = Field(..., description="영문 자막")
     text_kor: str = Field(..., description="한국어 번역")
     note: Optional[str] = Field("", description="문장 설명")
-    keywords: Optional[List[str]] = Field([], description="핵심 키워드 리스트")
-    text_eng_blank: Optional[str] = Field(None, description="키워드 블랭크 처리된 영문 (자동 생성 가능)")
+    keywords: Optional[List[str]] = Field([], description="핵심 키워드 리스트 (Type 2에서 사용)")
     
     @validator('end_time')
     def validate_time_range(cls, v, values):
@@ -160,8 +184,7 @@ class ClippingRequest(BaseModel):
     text_eng: str = Field(..., description="영문 자막")
     text_kor: str = Field(..., description="한국어 번역")
     note: Optional[str] = Field("", description="문장 설명")
-    keywords: Optional[List[str]] = Field([], description="핵심 키워드 리스트")
-    text_eng_blank: Optional[str] = Field(None, description="키워드 블랭크 처리된 영문 (자동 생성 가능)")
+    keywords: Optional[List[str]] = Field([], description="핵심 키워드 리스트 (Type 2에서 사용)")
     clipping_type: int = Field(1, ge=1, le=2, description="클리핑 타입 (1 또는 2)")
     individual_clips: bool = Field(False, description="개별 클립 저장 여부")
 
@@ -216,7 +239,7 @@ class JobStatus(BaseModel):
 
 
 def generate_blank_text(text: str, keywords: List[str]) -> str:
-    """키워드를 블랭크 처리"""
+    """키워드를 블랭크 처리 (띄어쓰기 유지)"""
     if not keywords:
         return text
     
@@ -224,7 +247,13 @@ def generate_blank_text(text: str, keywords: List[str]) -> str:
     for keyword in keywords:
         # 대소문자 구분 없이 찾되, 원본의 대소문자는 유지
         pattern = re.compile(re.escape(keyword), re.IGNORECASE)
-        blank_text = pattern.sub(lambda m: '_' * len(m.group()), blank_text)
+        # 띄어쓰기는 그대로 유지하면서 문자만 _ 로 대체
+        def replace_with_blanks(match):
+            matched_text = match.group()
+            # 각 문자를 확인하여 공백은 유지, 문자는 _로 대체
+            return ''.join('_' if char != ' ' else ' ' for char in matched_text)
+        
+        blank_text = pattern.sub(replace_with_blanks, blank_text)
     
     return blank_text
 
@@ -233,6 +262,133 @@ def generate_blank_text(text: str, keywords: List[str]) -> str:
 async def root():
     """웹 인터페이스 제공"""
     return FileResponse("index.html")
+
+@app.get("/admin", response_class=FileResponse, tags=["Admin"])
+async def admin_page():
+    """관리자 페이지"""
+    return FileResponse("admin.html")
+
+@app.get("/restful", response_class=HTMLResponse, include_in_schema=False)
+async def restful_docs():
+    """RESTful API 문서 페이지"""
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>RESTful API Documentation</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+            .container { max-width: 1000px; margin: 0 auto; }
+            .endpoint { background: white; padding: 20px; margin: 20px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .method { display: inline-block; padding: 5px 15px; color: white; font-weight: bold; border-radius: 4px; }
+            .post { background: #28a745; }
+            .get { background: #17a2b8; }
+            .delete { background: #dc3545; }
+            pre { background: #f8f9fa; padding: 15px; border-radius: 4px; overflow-x: auto; }
+            code { font-family: monospace; }
+            .nav { margin-bottom: 30px; }
+            .nav a { margin-right: 20px; text-decoration: none; color: #007bff; }
+            .nav a:hover { text-decoration: underline; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>RESTful API Documentation</h1>
+            <div class="nav">
+                <a href="/">← 홈으로</a>
+                <a href="/docs">Swagger UI</a>
+                <a href="/redoc">ReDoc</a>
+                <a href="/admin">관리자</a>
+            </div>
+            
+            <div class="endpoint">
+                <h2>클리핑 타입 설명</h2>
+                <h3>Type 1: 기본 패턴</h3>
+                <ul>
+                    <li>무자막 × 2회</li>
+                    <li>영한자막 × 2회</li>
+                </ul>
+                
+                <h3>Type 2: 확장 패턴 (키워드 하이라이트)</h3>
+                <ul>
+                    <li>무자막 × 2회</li>
+                    <li>키워드 블랭크 × 2회</li>
+                    <li>영한자막+노트 × 2회 (키워드 강조)</li>
+                </ul>
+            </div>
+            
+            <div class="endpoint">
+                <h2><span class="method post">POST</span> /api/clip</h2>
+                <p>단일 비디오 클립을 생성합니다.</p>
+                <h3>Request Body</h3>
+                <pre><code>{
+  "media_path": "/mnt/qnap/media_eng/indexed_media/sample.mp4",
+  "start_time": 10.5,
+  "end_time": 15.5,
+  "text_eng": "Hello, how are you?",
+  "text_kor": "안녕하세요, 어떻게 지내세요?",
+  "note": "인사하기",
+  "keywords": ["Hello", "how"],
+  "clipping_type": 1,
+  "individual_clips": false
+}</code></pre>
+                <h3>Response</h3>
+                <pre><code>{
+  "job_id": "123e4567-e89b-12d3-a456-426614174000",
+  "status": "accepted",
+  "message": "클리핑 작업이 시작되었습니다."
+}</code></pre>
+            </div>
+            
+            <div class="endpoint">
+                <h2><span class="method get">GET</span> /api/status/{job_id}</h2>
+                <p>작업 상태를 확인합니다.</p>
+                <h3>Response</h3>
+                <pre><code>{
+  "job_id": "123e4567-e89b-12d3-a456-426614174000",
+  "status": "completed",
+  "progress": 100,
+  "message": "클리핑 완료!",
+  "output_file": "output/123e4567/output.mp4",
+  "individual_clips": null,
+  "error": null
+}</code></pre>
+            </div>
+            
+            <div class="endpoint">
+                <h2><span class="method get">GET</span> /api/download/{job_id}</h2>
+                <p>생성된 클립을 다운로드합니다.</p>
+            </div>
+            
+            <div class="endpoint">
+                <h2><span class="method post">POST</span> /api/clip/batch</h2>
+                <p>여러 개의 비디오 클립을 한 번에 생성합니다.</p>
+                <h3>Request Body</h3>
+                <pre><code>{
+  "media_path": "/mnt/qnap/media_eng/indexed_media/sample.mp4",
+  "clips": [
+    {
+      "start_time": 10.5,
+      "end_time": 15.5,
+      "text_eng": "Hello, how are you?",
+      "text_kor": "안녕하세요, 어떻게 지내세요?",
+      "note": "인사하기",
+      "keywords": ["Hello", "how"]
+    }
+  ],
+  "clipping_type": 1,
+  "individual_clips": false
+}</code></pre>
+            </div>
+            
+            <div class="endpoint">
+                <h2><span class="method delete">DELETE</span> /api/job/{job_id}</h2>
+                <p>작업과 관련 파일을 삭제합니다.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
 
 @app.get("/api", tags=["Health"])
 async def api_info():
@@ -280,14 +436,29 @@ async def create_clip(
     job_id = str(uuid.uuid4())
     
     # 작업 상태 초기화
-    job_status[job_id] = {
+    job_data = {
         "status": "pending",
         "progress": 0,
         "message": "작업 대기 중...",
         "output_file": None,
         "individual_clips": None,
-        "error": None
+        "error": None,
+        "media_path": request.media_path,
+        "clipping_type": request.clipping_type,
+        "start_time": request.start_time,
+        "end_time": request.end_time,
+        "text_eng": request.text_eng,
+        "text_kor": request.text_kor,
+        "note": request.note,
+        "keywords": request.keywords
     }
+    job_status[job_id] = job_data
+    
+    # DB에 저장
+    try:
+        save_job_to_db(job_id, job_data)
+    except Exception as e:
+        logger.error(f"Failed to save job to DB: {e}")
     
     # 백그라운드 작업 시작
     background_tasks.add_task(
@@ -306,10 +477,8 @@ async def create_clip(
 async def process_clipping(job_id: str, request: ClippingRequest):
     """비디오 클리핑 처리"""
     try:
-        # 작업 시작
-        job_status[job_id]["status"] = "processing"
-        job_status[job_id]["progress"] = 10
-        job_status[job_id]["message"] = "클리핑 준비 중..."
+        # 작업 시작 (메모리와 DB 동시 업데이트)
+        update_job_status_both(job_id, "processing", 10, message="클리핑 준비 중...")
         
         # 미디어 경로 검증
         media_path = MediaValidator.validate_media_path(request.media_path)
@@ -320,9 +489,9 @@ async def process_clipping(job_id: str, request: ClippingRequest):
         job_dir = OUTPUT_DIR / job_id
         job_dir.mkdir(exist_ok=True)
         
-        # 텍스트 블랭크 처리 (필요한 경우)
-        text_eng_blank = request.text_eng_blank
-        if request.clipping_type == 2 and not text_eng_blank:
+        # 텍스트 블랭크 처리 (Type 2인 경우 자동 생성)
+        text_eng_blank = None
+        if request.clipping_type == 2:
             text_eng_blank = generate_blank_text(request.text_eng, request.keywords)
         
         # 자막 데이터 준비
@@ -337,8 +506,7 @@ async def process_clipping(job_id: str, request: ClippingRequest):
         }
         
         # ASS 파일 생성
-        job_status[job_id]["progress"] = 30
-        job_status[job_id]["message"] = "자막 파일 생성 중..."
+        update_job_status_both(job_id, "processing", 30, message="자막 파일 생성 중...")
         
         ass_generator = ASSGenerator()
         
@@ -367,8 +535,7 @@ async def process_clipping(job_id: str, request: ClippingRequest):
             ass_generator.generate_ass([full_subtitle], str(ass_path))
         
         # 비디오 클리핑
-        job_status[job_id]["progress"] = 50
-        job_status[job_id]["message"] = "비디오 클리핑 중..."
+        update_job_status_both(job_id, "processing", 50, message="비디오 클리핑 중...")
         
         video_encoder = VideoEncoder()
         output_path = job_dir / "output.mp4"
@@ -410,8 +577,7 @@ async def process_clipping(job_id: str, request: ClippingRequest):
             )
         
         if success:
-            job_status[job_id]["progress"] = 90
-            job_status[job_id]["message"] = "클리핑 완료, 파일 정리 중..."
+            update_job_status_both(job_id, "processing", 90, message="클리핑 완료, 파일 정리 중...")
             
             # 개별 클립 찾기
             individual_clips = []
@@ -434,19 +600,19 @@ async def process_clipping(job_id: str, request: ClippingRequest):
                 json.dump(metadata, f, ensure_ascii=False, indent=2)
             
             # 작업 완료
-            job_status[job_id]["status"] = "completed"
-            job_status[job_id]["progress"] = 100
-            job_status[job_id]["message"] = "클리핑 완료!"
-            job_status[job_id]["output_file"] = str(output_path)
             job_status[job_id]["individual_clips"] = individual_clips
+            
+            # 완료 상태 업데이트 (메모리와 DB 동시)
+            update_job_status_both(job_id, "completed", 100, message="클리핑 완료!", output_file=str(output_path))
             
         else:
             raise Exception("비디오 클리핑 실패")
             
     except Exception as e:
-        job_status[job_id]["status"] = "failed"
         job_status[job_id]["error"] = str(e)
-        job_status[job_id]["message"] = f"오류 발생: {str(e)}"
+        
+        # 실패 상태 업데이트 (메모리와 DB 동시)
+        update_job_status_both(job_id, "failed", message=f"오류 발생: {str(e)}", error_message=str(e))
 
 
 def create_type2_clip(encoder, media_path, blank_ass, full_ass, output_path, 
@@ -518,12 +684,30 @@ def create_type2_clip(encoder, media_path, blank_ass, full_ass, output_path,
          summary="작업 상태 확인")
 async def get_job_status(job_id: str):
     """작업 상태를 확인합니다."""
-    if job_id not in job_status:
+    # Check memory first (current worker)
+    if job_id in job_status:
+        return JobStatus(
+            job_id=job_id,
+            **job_status[job_id]
+        )
+    
+    # If not in memory, check database (for multi-worker support)
+    db_job = get_job_by_id(job_id)
+    if not db_job:
         raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Convert database job to status format
+    status_data = {
+        "status": db_job.status,
+        "progress": db_job.progress,
+        "message": db_job.message or "Processing...",
+        "output_file": db_job.output_file,
+        "created_at": db_job.created_at.isoformat() if db_job.created_at else None
+    }
     
     return JobStatus(
         job_id=job_id,
-        **job_status[job_id]
+        **status_data
     )
 
 
@@ -532,13 +716,24 @@ async def get_job_status(job_id: str):
          summary="클립 다운로드")
 async def download_clip(job_id: str):
     """생성된 클립을 다운로드합니다."""
-    if job_id not in job_status:
-        raise HTTPException(status_code=404, detail="Job not found")
+    # Check memory first (current worker)
+    output_file = None
+    status = None
     
-    if job_status[job_id]["status"] != "completed":
+    if job_id in job_status:
+        status = job_status[job_id]["status"]
+        output_file = job_status[job_id]["output_file"]
+    else:
+        # Check database (for multi-worker support)
+        db_job = get_job_by_id(job_id)
+        if not db_job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        status = db_job.status
+        output_file = db_job.output_file
+    
+    if status != "completed":
         raise HTTPException(status_code=400, detail="Job not completed")
     
-    output_file = job_status[job_id]["output_file"]
     if not output_file or not Path(output_file).exists():
         raise HTTPException(status_code=404, detail="Output file not found")
     
@@ -642,9 +837,9 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
             clip_dir = job_dir / f"clip_{clip_num:03d}"
             clip_dir.mkdir(exist_ok=True)
             
-            # 텍스트 블랭크 처리
-            text_eng_blank = clip_data.text_eng_blank
-            if request.clipping_type == 2 and not text_eng_blank:
+            # 텍스트 블랭크 처리 (Type 2인 경우 자동 생성)
+            text_eng_blank = None
+            if request.clipping_type == 2:
                 text_eng_blank = generate_blank_text(clip_data.text_eng, clip_data.keywords)
             
             # 자막 데이터
@@ -850,9 +1045,146 @@ async def cleanup_expired_jobs():
             await asyncio.sleep(300)  # 오류 시 5분 후 재시도
 
 
+# Admin API endpoints
+@app.get("/api/admin/statistics",
+         tags=["Admin"],
+         summary="통계 정보 조회")
+async def get_admin_statistics():
+    """클리핑 작업 통계 정보를 조회합니다."""
+    return get_statistics()
+
+
+@app.get("/api/admin/jobs/recent",
+         tags=["Admin"],
+         summary="최근 작업 목록 조회")
+async def get_recent_jobs_api(limit: int = 50):
+    """최근 생성된 작업 목록을 조회합니다."""
+    jobs = get_recent_jobs(limit)
+    return [
+        {
+            "id": job.id,
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+            "media_path": job.media_path,
+            "media_filename": Path(job.media_path).name if job.media_path else None,
+            "start_time": job.start_time,
+            "end_time": job.end_time,
+            "clipping_type": job.clipping_type,
+            "status": job.status,
+            "progress": job.progress,
+            "output_file": job.output_file,
+            "output_size": job.output_size,
+            "duration": job.duration,
+            "text_eng": job.text_eng,
+            "text_kor": job.text_kor,
+            "keywords": json.loads(job.keywords) if job.keywords and isinstance(job.keywords, str) else job.keywords or [],
+            "error_message": job.error_message
+        }
+        for job in jobs
+    ]
+
+
+@app.get("/api/admin/jobs/search",
+         tags=["Admin"],
+         summary="작업 검색")
+async def search_jobs_api(
+    keyword: Optional[str] = None,
+    status: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+):
+    """조건에 맞는 작업을 검색합니다."""
+    jobs = search_jobs(keyword, status, start_date, end_date)
+    return [
+        {
+            "id": job.id,
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+            "media_path": job.media_path,
+            "media_filename": Path(job.media_path).name if job.media_path else None,
+            "start_time": job.start_time,
+            "end_time": job.end_time,
+            "clipping_type": job.clipping_type,
+            "status": job.status,
+            "progress": job.progress,
+            "output_file": job.output_file,
+            "output_size": job.output_size,
+            "duration": job.duration,
+            "text_eng": job.text_eng,
+            "text_kor": job.text_kor,
+            "keywords": json.loads(job.keywords) if job.keywords and isinstance(job.keywords, str) else job.keywords or [],
+            "error_message": job.error_message
+        }
+        for job in jobs
+    ]
+
+
+@app.get("/api/admin/jobs/{job_id}",
+         tags=["Admin"],
+         summary="작업 상세 조회")
+async def get_job_detail_api(job_id: str):
+    """특정 작업의 상세 정보를 조회합니다."""
+    job = get_job_by_id(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    return {
+        "id": job.id,
+        "created_at": job.created_at.isoformat() if job.created_at else None,
+        "updated_at": job.updated_at.isoformat() if job.updated_at else None,
+        "media_path": job.media_path,
+        "media_filename": Path(job.media_path).name if job.media_path else None,
+        "start_time": job.start_time,
+        "end_time": job.end_time,
+        "duration": job.duration,
+        "clipping_type": job.clipping_type,
+        "status": job.status,
+        "progress": job.progress,
+        "message": job.message,
+        "output_file": job.output_file,
+        "output_size": job.output_size,
+        "individual_clips": json.loads(job.individual_clips) if job.individual_clips and isinstance(job.individual_clips, str) else job.individual_clips,
+        "text_eng": job.text_eng,
+        "text_kor": job.text_kor,
+        "note": job.note,
+        "keywords": json.loads(job.keywords) if job.keywords and isinstance(job.keywords, str) else job.keywords or [],
+        "error_message": job.error_message,
+        "client_ip": job.client_ip
+    }
+
+
+@app.delete("/api/admin/jobs",
+            tags=["Admin"],
+            summary="작업 일괄 삭제")
+async def delete_jobs_api(
+    job_ids: List[str],
+    delete_files: bool = True
+):
+    """여러 작업을 일괄 삭제합니다."""
+    result = delete_jobs_bulk(job_ids, delete_files)
+    return {
+        "deleted_count": result['deleted_count'],
+        "failed_deletes": result.get('failed_deletes', [])
+    }
+
+
+@app.post("/api/admin/cleanup",
+          tags=["Admin"],
+          summary="오래된 작업 정리")
+async def cleanup_old_jobs_api(
+    days_old: int = 30,
+    delete_files: bool = True
+):
+    """지정된 일수보다 오래된 작업을 정리합니다."""
+    result = cleanup_old_jobs(days_old, delete_files)
+    return {
+        "deleted_count": result['deleted_count']
+    }
+
+
 @app.on_event("startup")
 async def startup_event():
     """앱 시작 시 이벤트"""
+    # 데이터베이스 초기화
+    init_db()
     # 정리 작업 시작
     asyncio.create_task(cleanup_expired_jobs())
     logger.info("Video Clipping API started")

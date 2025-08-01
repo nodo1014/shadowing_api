@@ -20,8 +20,18 @@ fi
 # Start with gunicorn for production
 echo "Starting Video Clipping API in production mode..."
 
+# Check if gunicorn is in PATH, otherwise use local installation
+if command -v gunicorn &> /dev/null; then
+    GUNICORN_CMD="gunicorn"
+elif [ -f "$HOME/.local/bin/gunicorn" ]; then
+    GUNICORN_CMD="$HOME/.local/bin/gunicorn"
+else
+    echo "Error: gunicorn not found. Please install it with: pip install gunicorn"
+    exit 1
+fi
+
 # Using gunicorn with uvicorn workers
-gunicorn clipping_api:app \
+$GUNICORN_CMD clipping_api:app \
     --workers ${WORKERS:-4} \
     --worker-class uvicorn.workers.UvicornWorker \
     --bind ${HOST:-0.0.0.0}:${PORT:-8080} \

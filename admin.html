@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Clipping Admin</title>
+    <link rel="stylesheet" href="frontend/css/styles.css">
+    <style>
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 16px;
+            border-radius: 6px;
+            border: 1px solid var(--gray-200);
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--gray-900);
+            margin: 4px 0;
+        }
+        
+        .stat-label {
+            color: var(--gray-500);
+            font-size: 12px;
+        }
+        
+        /* Filters */
+        .filters {
+            background: white;
+            padding: 16px;
+            border-radius: 6px;
+            border: 1px solid var(--gray-200);
+            margin-bottom: 24px;
+        }
+        
+        .filters h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+        
+        .filter-row {
+            display: flex;
+            gap: 12px;
+            align-items: end;
+            flex-wrap: wrap;
+        }
+        
+        /* Table */
+        .jobs-table {
+            background: white;
+            border-radius: 6px;
+            border: 1px solid var(--gray-200);
+            overflow-x: auto;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        
+        th {
+            background: var(--gray-50);
+            padding: 12px;
+            text-align: left;
+            font-weight: 500;
+            color: var(--gray-700);
+            border-bottom: 1px solid var(--gray-200);
+        }
+        
+        td {
+            padding: 12px;
+            border-bottom: 1px solid var(--gray-100);
+        }
+        
+        tr:hover {
+            background: var(--gray-50);
+        }
+        
+        /* Action Buttons */
+        .action-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 4px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            margin-right: 4px;
+        }
+        
+        .action-btn:hover {
+            background: var(--primary-hover);
+        }
+        
+        .action-btn.download {
+            background: var(--success);
+        }
+        
+        .action-btn.download:hover {
+            opacity: 0.9;
+        }
+        
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            background: white;
+            padding: 24px;
+            border-radius: 6px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            margin: 20px;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .modal-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--gray-400);
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .close-modal:hover {
+            color: var(--gray-600);
+        }
+        
+        .info-group {
+            margin-bottom: 16px;
+        }
+        
+        .info-group h4 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--gray-700);
+        }
+        
+        .info-item {
+            display: flex;
+            padding: 4px 0;
+            font-size: 13px;
+        }
+        
+        .info-label {
+            font-weight: 500;
+            color: var(--gray-600);
+            width: 120px;
+            flex-shrink: 0;
+        }
+        
+        .info-value {
+            color: var(--gray-800);
+        }
+        
+        .text-preview {
+            background: var(--gray-50);
+            padding: 12px;
+            border-radius: 4px;
+            margin: 8px 0;
+            white-space: pre-wrap;
+            font-size: 13px;
+            border: 1px solid var(--gray-200);
+        }
+        
+        .keyword-highlight {
+            background: #fef3c7;
+            padding: 2px 4px;
+            border-radius: 2px;
+        }
+        
+        /* Bulk Actions */
+        .bulk-actions {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        
+        .delete-btn {
+            background: var(--danger);
+            color: white;
+        }
+        
+        .delete-btn:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>Video Clipping Admin</h1>
+            <p>클리핑 작업 관리 및 통계</p>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- 통계 -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">전체 작업</div>
+                <div class="stat-value" id="total-jobs">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">완료</div>
+                <div class="stat-value" id="completed-jobs">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">성공률</div>
+                <div class="stat-value" id="success-rate">0%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">처리 시간</div>
+                <div class="stat-value" id="total-duration">0h</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">용량</div>
+                <div class="stat-value" id="total-size">0MB</div>
+            </div>
+        </div>
+
+        <!-- 필터 -->
+        <div class="filters">
+            <h3>검색 필터</h3>
+            <div class="filter-row">
+                <div class="form-group">
+                    <label>키워드</label>
+                    <input type="text" id="search-keyword" placeholder="검색어 입력">
+                </div>
+                <div class="form-group">
+                    <label>상태</label>
+                    <select id="search-status">
+                        <option value="">전체</option>
+                        <option value="pending">대기중</option>
+                        <option value="processing">처리중</option>
+                        <option value="completed">완료</option>
+                        <option value="failed">실패</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>시작일</label>
+                    <input type="date" id="search-start-date">
+                </div>
+                <div class="form-group">
+                    <label>종료일</label>
+                    <input type="date" id="search-end-date">
+                </div>
+                <button class="submit-btn" onclick="searchJobs()">검색</button>
+                <button class="cancel-btn" onclick="resetFilters()">초기화</button>
+            </div>
+        </div>
+
+        <!-- 일괄 작업 -->
+        <div class="bulk-actions">
+            <button class="action-btn delete-btn" onclick="deleteSelected()">선택 삭제</button>
+            <button class="action-btn" onclick="cleanupOldJobs()">30일 이상 정리</button>
+        </div>
+
+        <!-- 작업 목록 -->
+        <div class="jobs-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th width="30"><input type="checkbox" id="select-all" onchange="toggleSelectAll()"></th>
+                        <th>ID</th>
+                        <th>생성일시</th>
+                        <th>미디어</th>
+                        <th>구간</th>
+                        <th>타입</th>
+                        <th>상태</th>
+                        <th>크기</th>
+                        <th>작업</th>
+                    </tr>
+                </thead>
+                <tbody id="jobs-tbody">
+                    <!-- 동적으로 추가됨 -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 상세 정보 모달 -->
+    <div id="detail-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>클립 상세 정보</h2>
+                <button class="close-modal" onclick="closeModal()">&times;</button>
+            </div>
+            <div id="modal-body">
+                <!-- 동적으로 추가됨 -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = window.location.origin;
+        let selectedJobs = new Set();
+        
+        // 페이지 로드 시 초기화
+        document.addEventListener('DOMContentLoaded', () => {
+            loadStatistics();
+            loadRecentJobs();
+        });
+        
+        // 통계 로드
+        async function loadStatistics() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/admin/statistics`);
+                if (response.ok) {
+                    const stats = await response.json();
+                    document.getElementById('total-jobs').textContent = stats.total_jobs;
+                    document.getElementById('completed-jobs').textContent = stats.completed_jobs;
+                    document.getElementById('success-rate').textContent = stats.success_rate.toFixed(1) + '%';
+                    document.getElementById('total-duration').textContent = formatDuration(stats.total_duration_seconds);
+                    document.getElementById('total-size').textContent = formatSize(stats.total_output_size_mb);
+                }
+            } catch (error) {
+                console.error('Failed to load statistics:', error);
+            }
+        }
+        
+        // 최근 작업 로드
+        async function loadRecentJobs() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/admin/jobs/recent?limit=50`);
+                if (response.ok) {
+                    const jobs = await response.json();
+                    displayJobs(jobs);
+                }
+            } catch (error) {
+                console.error('Failed to load jobs:', error);
+            }
+        }
+        
+        // 작업 검색
+        async function searchJobs() {
+            const params = new URLSearchParams();
+            
+            const keyword = document.getElementById('search-keyword').value;
+            if (keyword) params.append('keyword', keyword);
+            
+            const status = document.getElementById('search-status').value;
+            if (status) params.append('status', status);
+            
+            const startDate = document.getElementById('search-start-date').value;
+            if (startDate) params.append('start_date', startDate);
+            
+            const endDate = document.getElementById('search-end-date').value;
+            if (endDate) params.append('end_date', endDate);
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/admin/jobs/search?${params}`);
+                if (response.ok) {
+                    const jobs = await response.json();
+                    displayJobs(jobs);
+                }
+            } catch (error) {
+                console.error('Search failed:', error);
+            }
+        }
+        
+        // 필터 초기화
+        function resetFilters() {
+            document.getElementById('search-keyword').value = '';
+            document.getElementById('search-status').value = '';
+            document.getElementById('search-start-date').value = '';
+            document.getElementById('search-end-date').value = '';
+            loadRecentJobs();
+        }
+        
+        // 작업 목록 표시
+        function displayJobs(jobs) {
+            const tbody = document.getElementById('jobs-tbody');
+            tbody.innerHTML = '';
+            selectedJobs.clear();
+            document.getElementById('select-all').checked = false;
+            
+            jobs.forEach(job => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><input type="checkbox" value="${job.id}" onchange="toggleSelection('${job.id}')"></td>
+                    <td title="${job.id}">${job.id.substring(0, 8)}...</td>
+                    <td>${new Date(job.created_at).toLocaleString('ko-KR')}</td>
+                    <td title="${job.media_path}">${job.media_filename || 'N/A'}</td>
+                    <td>${job.start_time?.toFixed(1)}s - ${job.end_time?.toFixed(1)}s</td>
+                    <td>Type ${job.clipping_type}</td>
+                    <td><span class="status-badge ${job.status}">${getStatusText(job.status)}</span></td>
+                    <td>${job.output_size ? formatSize(job.output_size / 1024 / 1024) : '-'}</td>
+                    <td>
+                        <button class="action-btn" onclick="showJobDetail('${job.id}')">상세</button>
+                        ${job.status === 'completed' ? 
+                            `<button class="action-btn download" onclick="downloadClip('${job.id}')">다운로드</button>` : ''}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+        
+        // 선택 토글
+        function toggleSelection(jobId) {
+            if (selectedJobs.has(jobId)) {
+                selectedJobs.delete(jobId);
+            } else {
+                selectedJobs.add(jobId);
+            }
+        }
+        
+        // 전체 선택
+        function toggleSelectAll() {
+            const selectAll = document.getElementById('select-all').checked;
+            const checkboxes = document.querySelectorAll('#jobs-tbody input[type="checkbox"]');
+            
+            checkboxes.forEach(cb => {
+                cb.checked = selectAll;
+                if (selectAll) {
+                    selectedJobs.add(cb.value);
+                } else {
+                    selectedJobs.delete(cb.value);
+                }
+            });
+        }
+        
+        // 선택 삭제
+        async function deleteSelected() {
+            if (selectedJobs.size === 0) {
+                alert('삭제할 작업을 선택하세요.');
+                return;
+            }
+            
+            if (!confirm(`${selectedJobs.size}개의 작업을 삭제하시겠습니까?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/admin/jobs`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        job_ids: Array.from(selectedJobs),
+                        delete_files: true
+                    })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    alert(`${result.deleted_count}개의 작업이 삭제되었습니다.`);
+                    loadRecentJobs();
+                    loadStatistics();
+                }
+            } catch (error) {
+                console.error('Delete failed:', error);
+                alert('삭제 중 오류가 발생했습니다.');
+            }
+        }
+        
+        // 오래된 작업 정리
+        async function cleanupOldJobs() {
+            if (!confirm('30일 이상 된 작업을 모두 삭제하시겠습니까?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/admin/cleanup`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        days_old: 30,
+                        delete_files: true
+                    })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    alert(`${result.deleted_count}개의 오래된 작업이 삭제되었습니다.`);
+                    loadRecentJobs();
+                    loadStatistics();
+                }
+            } catch (error) {
+                console.error('Cleanup failed:', error);
+                alert('정리 중 오류가 발생했습니다.');
+            }
+        }
+        
+        // 작업 상세 정보 표시
+        async function showJobDetail(jobId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/admin/jobs/${jobId}`);
+                if (response.ok) {
+                    const job = await response.json();
+                    
+                    const modalBody = document.getElementById('modal-body');
+                    modalBody.innerHTML = `
+                        <div class="info-group">
+                            <h4>기본 정보</h4>
+                            <div class="info-item">
+                                <span class="info-label">Job ID:</span>
+                                <span class="info-value">${job.id}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">생성일시:</span>
+                                <span class="info-value">${new Date(job.created_at).toLocaleString('ko-KR')}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">상태:</span>
+                                <span class="info-value"><span class="status-badge ${job.status}">${getStatusText(job.status)}</span></span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">진행률:</span>
+                                <span class="info-value">${job.progress}%</span>
+                            </div>
+                            ${job.error_message ? `
+                            <div class="info-item">
+                                <span class="info-label">에러:</span>
+                                <span class="info-value" style="color: var(--danger)">${job.error_message}</span>
+                            </div>` : ''}
+                        </div>
+                        
+                        <div class="info-group">
+                            <h4>미디어 정보</h4>
+                            <div class="info-item">
+                                <span class="info-label">파일:</span>
+                                <span class="info-value">${job.media_filename}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">구간:</span>
+                                <span class="info-value">${job.start_time}s - ${job.end_time}s (${job.duration}s)</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">타입:</span>
+                                <span class="info-value">Type ${job.clipping_type}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="info-group">
+                            <h4>자막 정보</h4>
+                            <div class="text-preview">
+                                <strong>영어:</strong><br>
+                                ${highlightKeywords(job.text_eng || '', job.keywords)}
+                            </div>
+                            <div class="text-preview">
+                                <strong>한국어:</strong><br>
+                                ${job.text_kor || ''}
+                            </div>
+                            ${job.note ? `
+                            <div class="text-preview">
+                                <strong>노트:</strong><br>
+                                ${job.note}
+                            </div>` : ''}
+                            ${job.keywords && job.keywords.length > 0 ? `
+                            <div class="info-item">
+                                <span class="info-label">키워드:</span>
+                                <span class="info-value">${job.keywords.join(', ')}</span>
+                            </div>` : ''}
+                        </div>
+                        
+                        ${job.output_file ? `
+                        <div class="info-group">
+                            <h4>출력 정보</h4>
+                            <div class="info-item">
+                                <span class="info-label">파일 크기:</span>
+                                <span class="info-value">${formatSize(job.output_size / 1024 / 1024)}</span>
+                            </div>
+                        </div>` : ''}
+                    `;
+                    
+                    document.getElementById('detail-modal').style.display = 'flex';
+                }
+            } catch (error) {
+                console.error('Failed to load job detail:', error);
+            }
+        }
+        
+        // 모달 닫기
+        function closeModal() {
+            document.getElementById('detail-modal').style.display = 'none';
+        }
+        
+        // 클립 다운로드
+        function downloadClip(jobId) {
+            window.open(`${API_BASE_URL}/api/download/${jobId}`, '_blank');
+        }
+        
+        // 헬퍼 함수들
+        function getStatusText(status) {
+            const statusMap = {
+                'pending': '대기중',
+                'processing': '처리중',
+                'completed': '완료',
+                'failed': '실패'
+            };
+            return statusMap[status] || status;
+        }
+        
+        function formatDuration(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            if (hours > 0) {
+                return `${hours}h ${minutes}m`;
+            }
+            return `${minutes}m`;
+        }
+        
+        function formatSize(mb) {
+            if (mb < 1) {
+                return (mb * 1024).toFixed(0) + 'KB';
+            } else if (mb < 1024) {
+                return mb.toFixed(1) + 'MB';
+            } else {
+                return (mb / 1024).toFixed(1) + 'GB';
+            }
+        }
+        
+        function highlightKeywords(text, keywords) {
+            if (!keywords || keywords.length === 0 || !text) return text;
+            
+            let highlighted = text;
+            keywords.forEach(keyword => {
+                const regex = new RegExp(`(${keyword})`, 'gi');
+                highlighted = highlighted.replace(regex, '<span class="keyword-highlight">$1</span>');
+            });
+            return highlighted;
+        }
+        
+        // ESC 키로 모달 닫기
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+        
+        // 모달 외부 클릭 시 닫기
+        document.getElementById('detail-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'detail-modal') {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>

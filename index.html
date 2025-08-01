@@ -4,145 +4,227 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Video Clipping Service</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="frontend/css/styles.css">
+    <link rel="stylesheet" href="frontend/css/app.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Video Clipping Service</h1>
-            <p>전문 비디오 클리핑 서비스 - 자막과 함께 학습용 클립을 생성하세요</p>
-        </header>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>Video Clipping</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-page="manage">클립 관리</button>
+                <button class="nav-item" data-page="single">단일 클립 생성</button>
+                <button class="nav-item" data-page="batch">배치 클립 생성</button>
+                <button class="nav-item" data-page="admin">관리자</button>
+                <a href="/restful" class="nav-item" style="text-decoration: none; text-align: center;">🔌 RESTful API</a>
+            </nav>
+        </aside>
 
-        <main>
-            <!-- 클리핑 모드 선택 -->
-            <div class="mode-selector">
-                <button class="mode-btn active" data-mode="single">단일 클립</button>
-                <button class="mode-btn" data-mode="batch">배치 클립</button>
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- 클립 관리 페이지 -->
+            <div class="page active" id="manage-page">
+                <div class="page-header">
+                    <h1 class="page-title">클립 관리</h1>
+                    <p class="page-subtitle">생성된 클립을 조회하고 관리합니다</p>
+                </div>
+
+                <!-- 필터 -->
+                <div class="filters">
+                    <div class="filter-row">
+                        <div class="form-group">
+                            <label>상태</label>
+                            <select id="filter-status">
+                                <option value="">전체</option>
+                                <option value="completed">완료</option>
+                                <option value="processing">처리중</option>
+                                <option value="failed">실패</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>기간</label>
+                            <select id="filter-period">
+                                <option value="today">오늘</option>
+                                <option value="week">이번 주</option>
+                                <option value="month">이번 달</option>
+                                <option value="all">전체</option>
+                            </select>
+                        </div>
+                        <button class="submit-btn" onclick="refreshJobs()">새로고침</button>
+                    </div>
+                </div>
+
+                <!-- 작업 목록 -->
+                <div class="jobs-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>생성일시</th>
+                                <th>미디어</th>
+                                <th>구간</th>
+                                <th>타입</th>
+                                <th>상태</th>
+                                <th>작업</th>
+                            </tr>
+                        </thead>
+                        <tbody id="jobs-list">
+                            <!-- 동적으로 추가됨 -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            <!-- 단일 클립 폼 -->
-            <div id="single-clip-form" class="clip-form active">
-                <h2>단일 클립 생성</h2>
-                
-                <div class="form-group">
-                    <label for="media-path">미디어 파일 경로 *</label>
-                    <input type="text" id="media-path" placeholder="/mnt/qnap/media_eng/indexed_media/video.mp4" required>
-                    <small class="help-text">허용된 디렉토리 내의 파일 경로를 입력하세요</small>
+            <!-- 단일 클립 페이지 -->
+            <div class="page" id="single-page">
+                <div class="page-header">
+                    <h1 class="page-title">단일 클립 생성</h1>
+                    <p class="page-subtitle">하나의 클립을 생성합니다</p>
                 </div>
 
-                <div class="form-row">
+                <div class="clip-form">
                     <div class="form-group">
-                        <label for="start-time">시작 시간 (초) *</label>
-                        <input type="number" id="start-time" step="0.1" min="0" placeholder="10.5" required>
+                        <label for="media-path">미디어 파일 경로 *</label>
+                        <input type="text" id="media-path" placeholder="/mnt/qnap/media_eng/indexed_media/animation/KPOP.Demon.Hunters/S01E01.mp4" value="/mnt/qnap/media_eng/indexed_media/animation/KPop.Demon.Hunters.2025.1080p.WEBRip.x264.AAC5.1-[YTS.MX].mp4" required>
                     </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="start-time">시작 시간 (초) *</label>
+                            <input type="number" id="start-time" step="0.1" min="0" placeholder="10.5" value="10.5" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="end-time">종료 시간 (초) *</label>
+                            <input type="number" id="end-time" step="0.1" min="0" placeholder="15.5" value="15.5" required>
+                        </div>
+                    </div>
+
                     <div class="form-group">
-                        <label for="end-time">종료 시간 (초) *</label>
-                        <input type="number" id="end-time" step="0.1" min="0" placeholder="15.5" required>
+                        <label for="text-eng">영문 자막 *</label>
+                        <textarea id="text-eng" rows="2" placeholder="Hello, how are you?" required>Hello, how are you?</textarea>
                     </div>
-                </div>
 
-                <div class="form-group">
-                    <label for="text-eng">영문 자막 *</label>
-                    <textarea id="text-eng" rows="2" placeholder="Hello, how are you?" required></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label for="text-kor">한국어 번역 *</label>
-                    <textarea id="text-kor" rows="2" placeholder="안녕하세요, 어떻게 지내세요?" required></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label for="note">문장 설명</label>
-                    <textarea id="note" rows="2" placeholder="인사하기"></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label for="keywords">키워드 (쉼표로 구분)</label>
-                    <input type="text" id="keywords" placeholder="Hello, how">
-                </div>
-
-                <div class="form-row">
                     <div class="form-group">
-                        <label for="clipping-type">클리핑 타입 *</label>
-                        <select id="clipping-type">
-                            <option value="1">Type 1: 기본 (무자막 + 영한자막)</option>
-                            <option value="2">Type 2: 확장 (무자막 + 블랭크 + 영한자막+노트)</option>
-                        </select>
+                        <label for="text-kor">한국어 번역 *</label>
+                        <textarea id="text-kor" rows="2" placeholder="안녕하세요, 어떻게 지내세요?" required>안녕하세요, 어떻게 지내세요?</textarea>
                     </div>
-                    <div class="form-group checkbox-group">
-                        <label>
-                            <input type="checkbox" id="individual-clips">
-                            개별 클립 저장
-                        </label>
-                    </div>
-                </div>
 
-                <button class="submit-btn" onclick="createSingleClip()">클립 생성</button>
-            </div>
-
-            <!-- 배치 클립 폼 -->
-            <div id="batch-clip-form" class="clip-form">
-                <h2>배치 클립 생성</h2>
-                
-                <div class="form-group">
-                    <label for="batch-media-path">미디어 파일 경로 *</label>
-                    <input type="text" id="batch-media-path" placeholder="/mnt/qnap/media_eng/indexed_media/video.mp4" required>
-                    <small class="help-text">허용된 디렉토리 내의 파일 경로를 입력하세요</small>
-                </div>
-
-                <div class="form-row">
                     <div class="form-group">
-                        <label for="batch-clipping-type">클리핑 타입 *</label>
-                        <select id="batch-clipping-type">
-                            <option value="1">Type 1: 기본 (무자막 + 영한자막)</option>
-                            <option value="2">Type 2: 확장 (무자막 + 블랭크 + 영한자막+노트)</option>
-                        </select>
+                        <label for="note">문장 설명</label>
+                        <textarea id="note" rows="2" placeholder="인사하기">인사하는 표현</textarea>
                     </div>
-                    <div class="form-group checkbox-group">
-                        <label>
-                            <input type="checkbox" id="batch-individual-clips">
-                            개별 클립 저장
-                        </label>
+
+                    <div class="form-group">
+                        <label for="keywords">키워드 (쉼표로 구분)</label>
+                        <input type="text" id="keywords" placeholder="Hello, how" value="Hello, how">
                     </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="clipping-type">클리핑 타입 *</label>
+                            <select id="clipping-type">
+                                <option value="1">Type 1: 기본</option>
+                                <option value="2">Type 2: 확장</option>
+                            </select>
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <label>
+                                <input type="checkbox" id="individual-clips">
+                                개별 클립 저장
+                            </label>
+                        </div>
+                    </div>
+
+                    <button class="submit-btn" onclick="createSingleClip()">클립 생성</button>
                 </div>
 
-                <div class="clips-container">
-                    <h3>클립 목록</h3>
-                    <div id="clips-list"></div>
-                    <button class="add-clip-btn" onclick="addClipEntry()">+ 클립 추가</button>
-                </div>
-
-                <button class="submit-btn" onclick="createBatchClips()">배치 클립 생성</button>
-            </div>
-
-            <!-- 작업 상태 -->
-            <div id="job-status" class="job-status hidden">
-                <h3>작업 상태</h3>
-                <div class="status-content">
+                <!-- 작업 상태 -->
+                <div class="job-status hidden" id="job-status">
+                    <h3>작업 상태</h3>
                     <div class="status-header">
-                        <span class="job-id"></span>
-                        <span class="status-badge"></span>
+                        <span class="job-id" id="current-job-id"></span>
+                        <span class="status-badge" id="status-badge">pending</span>
                     </div>
                     <div class="progress-container">
-                        <div class="progress-bar"></div>
-                        <span class="progress-text">0%</span>
+                        <div class="progress-bar" id="progress-bar"></div>
                     </div>
-                    <div class="status-message"></div>
+                    <div class="status-message" id="status-message">작업 대기 중...</div>
                     <div class="action-buttons">
-                        <button class="download-btn hidden" onclick="downloadClip()">다운로드</button>
+                        <button class="download-btn hidden" id="download-btn" onclick="downloadClip()">다운로드</button>
                         <button class="cancel-btn" onclick="cancelJob()">취소</button>
                     </div>
                 </div>
             </div>
 
-            <!-- 작업 목록 -->
-            <div class="job-list">
-                <h3>최근 작업</h3>
-                <div id="recent-jobs"></div>
+            <!-- 배치 클립 페이지 -->
+            <div class="page" id="batch-page">
+                <div class="page-header">
+                    <h1 class="page-title">배치 클립 생성</h1>
+                    <p class="page-subtitle">여러 클립을 한번에 생성합니다</p>
+                </div>
+
+                <div class="clip-form">
+                    <div class="form-group">
+                        <label for="batch-media-path">미디어 파일 경로 *</label>
+                        <input type="text" id="batch-media-path" placeholder="/mnt/qnap/media_eng/indexed_media/animation/KPOP.Demon.Hunters/S01E01.mp4" value="/mnt/qnap/media_eng/indexed_media/animation/KPop.Demon.Hunters.2025.1080p.WEBRip.x264.AAC5.1-[YTS.MX].mp4" required>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="batch-clipping-type">클리핑 타입 *</label>
+                            <select id="batch-clipping-type">
+                                <option value="1">Type 1: 기본</option>
+                                <option value="2">Type 2: 확장</option>
+                            </select>
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <label>
+                                <input type="checkbox" id="batch-individual-clips">
+                                개별 클립 저장
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="clips-container">
+                        <h3>클립 목록</h3>
+                        <div id="clips-list">
+                            <!-- 동적으로 추가됨 -->
+                        </div>
+                        <button class="add-clip-btn" onclick="addClipEntry()">클립 추가</button>
+                    </div>
+
+                    <button class="submit-btn" onclick="createBatchClips()">배치 생성</button>
+                </div>
+
+                <!-- 배치 작업 상태 -->
+                <div class="job-status hidden" id="batch-job-status">
+                    <h3>배치 작업 상태</h3>
+                    <div class="status-header">
+                        <span class="job-id" id="batch-job-id"></span>
+                        <span class="status-badge" id="batch-status-badge">pending</span>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar" id="batch-progress-bar"></div>
+                    </div>
+                    <div class="status-message" id="batch-status-message">작업 대기 중...</div>
+                    <div id="batch-results" class="batch-results"></div>
+                </div>
+            </div>
+
+            <!-- 관리자 페이지 -->
+            <div class="page" id="admin-page">
+                <iframe src="/admin" style="width: 100%; height: 100%; border: none;"></iframe>
             </div>
         </main>
     </div>
 
-    <script src="app.js"></script>
+    <!-- JavaScript 파일들 -->
+    <script src="frontend/js/common.js"></script>
+    <script src="frontend/js/manage.js"></script>
+    <script src="frontend/js/single-clip.js"></script>
+    <script src="frontend/js/batch-clip.js"></script>
+    <script src="frontend/js/navigation.js"></script>
 </body>
 </html>

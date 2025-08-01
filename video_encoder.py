@@ -322,6 +322,8 @@ class VideoEncoder:
     def _concatenate_clips(self, clip_paths: List[str], output_path: str, gap_duration: float = 0.5) -> bool:
         """Concatenate multiple video clips with gaps between them"""
         
+        print(f"[DEBUG] _concatenate_clips called with {len(clip_paths)} clips, gap_duration={gap_duration}")
+        
         if not clip_paths:
             return False
         
@@ -406,28 +408,63 @@ class VideoEncoder:
                     freeze_file.close()
                     temp_freeze_files.append(freeze_file.name)
                     
-                    # Extract last frame and create freeze video in one command
+                    # Create freeze frame from last frame of the clip
                     freeze_cmd = [
                         'ffmpeg', '-y',
-                        '-sseof', '-0.1',  # Start 0.1s before end
+                        # Get the last 0.1 second of the video
+                        '-sseof', '-0.1',
                         '-i', clip_path,
+                        # Generate silent audio
+                        '-f', 'lavfi',
+                        '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
+                        # Create a video by looping the frames for gap_duration
+                        '-filter_complex', 
+                        f'[0:v]trim=0:0.04,loop={int(gap_duration*25)}:1:0,setpts=N/FRAME_RATE/TB,scale={width}:{height}[v]',
+                        '-map', '[v]',
+                        '-map', '1:a',
                         '-t', str(gap_duration),
-                        '-vf', f'loop=loop=-1:size=1,scale={width}:{height}',
                         '-c:v', 'libx264',
-                        '-preset', 'veryfast',  # 갭은 빠르게 인코딩
+                        '-preset', 'veryfast',
                         '-crf', '18',
                         '-pix_fmt', 'yuv420p',
-                        '-an',  # No audio
+                        '-c:a', 'aac',
+                        '-b:a', '128k',
+                        '-r', '25',
                         freeze_file.name
                     ]
                     
+                    print(f"[DEBUG] Creating freeze frame {i+1} with duration {gap_duration}s")
                     freeze_result = subprocess.run(freeze_cmd, capture_output=True, text=True)
                     
                     if freeze_result.returncode == 0:
                         freeze_escaped = freeze_file.name.replace('\\', '/').replace("'", "'\\''")
                         concat_file.write(f"file '{freeze_escaped}'\n")
+                        print(f"[DEBUG] Successfully created freeze frame: {freeze_file.name}")
                     else:
-                        print(f"Warning: Failed to create freeze frame, using black gap instead")
+                        print(f"[ERROR] Failed to create freeze frame")
+                        print(f"[ERROR] FFmpeg stderr: {freeze_result.stderr}")
+                        print(f"[ERROR] FFmpeg stdout: {freeze_result.stdout}")
+                        # Fallback: create black video with silent audio
+                        black_cmd = [
+                            'ffmpeg', '-y',
+                            '-f', 'lavfi',
+                            '-i', f'color=c=black:s={width}x{height}:d={gap_duration}',
+                            '-f', 'lavfi', 
+                            '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
+                            '-t', str(gap_duration),
+                            '-c:v', 'libx264',
+                            '-preset', 'veryfast',
+                            '-crf', '18',
+                            '-pix_fmt', 'yuv420p',
+                            '-c:a', 'aac',
+                            '-b:a', '128k',
+                            '-shortest',
+                            freeze_file.name
+                        ]
+                        black_result = subprocess.run(black_cmd, capture_output=True, text=True)
+                        if black_result.returncode == 0:
+                            freeze_escaped = freeze_file.name.replace('\\', '/').replace("'", "'\\''")
+                            concat_file.write(f"file '{freeze_escaped}'\n")
             
             concat_file.close()
             

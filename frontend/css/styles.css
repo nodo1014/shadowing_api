@@ -1,0 +1,496 @@
+:root {
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --success: #10b981;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-400: #9ca3af;
+    --gray-500: #6b7280;
+    --gray-600: #4b5563;
+    --gray-700: #374151;
+    --gray-800: #1f2937;
+    --gray-900: #111827;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--gray-900);
+    background: var(--gray-50);
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 16px;
+}
+
+/* Header */
+header {
+    background: white;
+    border-bottom: 1px solid var(--gray-200);
+    padding: 16px 0;
+    margin-bottom: 24px;
+}
+
+header h1 {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--gray-900);
+}
+
+header p {
+    font-size: 14px;
+    color: var(--gray-500);
+    margin-top: 2px;
+}
+
+/* Mode Selector */
+.mode-selector {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    background: white;
+    padding: 4px;
+    border-radius: 6px;
+    border: 1px solid var(--gray-200);
+}
+
+.mode-btn {
+    flex: 1;
+    padding: 8px 16px;
+    border: none;
+    background: transparent;
+    color: var(--gray-600);
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.15s;
+}
+
+.mode-btn:hover {
+    background: var(--gray-100);
+}
+
+.mode-btn.active {
+    background: var(--primary);
+    color: white;
+}
+
+/* Forms */
+.clip-form {
+    background: white;
+    padding: 24px;
+    border-radius: 6px;
+    border: 1px solid var(--gray-200);
+    margin-bottom: 24px;
+}
+
+.clip-form h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--gray-700);
+    margin-bottom: 4px;
+}
+
+input[type="text"],
+input[type="number"],
+textarea,
+select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--gray-300);
+    border-radius: 4px;
+    font-size: 14px;
+    transition: border-color 0.15s;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.checkbox-group {
+    display: flex;
+    align-items: center;
+    margin-top: 16px;
+}
+
+.checkbox-group input[type="checkbox"] {
+    width: auto;
+    margin-right: 8px;
+}
+
+/* Buttons */
+.submit-btn {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.submit-btn:hover {
+    background: var(--primary-hover);
+}
+
+.submit-btn:active {
+    transform: translateY(1px);
+}
+
+/* Batch Clips */
+.clips-container {
+    margin-top: 24px;
+    padding: 16px;
+    background: var(--gray-100);
+    border-radius: 4px;
+}
+
+.clips-container h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.clip-entry {
+    background: white;
+    padding: 16px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    border: 1px solid var(--gray-200);
+}
+
+.clip-entry-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.clip-number {
+    font-weight: 600;
+    color: var(--gray-700);
+}
+
+.remove-clip-btn {
+    background: var(--danger);
+    color: white;
+    border: none;
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.remove-clip-btn:hover {
+    opacity: 0.9;
+}
+
+.add-clip-btn {
+    background: var(--gray-600);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    width: 100%;
+    margin-top: 8px;
+}
+
+.add-clip-btn:hover {
+    background: var(--gray-700);
+}
+
+/* Job Status */
+.job-status {
+    background: white;
+    padding: 24px;
+    border-radius: 6px;
+    border: 1px solid var(--gray-200);
+    margin-bottom: 24px;
+}
+
+.job-status h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
+.status-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.job-id {
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--gray-500);
+}
+
+.status-badge {
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.status-badge.pending {
+    background: var(--gray-100);
+    color: var(--gray-600);
+}
+
+.status-badge.processing {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.status-badge.completed {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.status-badge.failed {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.progress-container {
+    background: var(--gray-200);
+    border-radius: 4px;
+    height: 8px;
+    position: relative;
+    margin-bottom: 12px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    background: var(--primary);
+    height: 100%;
+    width: 0%;
+    transition: width 0.3s;
+}
+
+.status-message {
+    padding: 12px;
+    background: var(--gray-50);
+    border-radius: 4px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: var(--gray-600);
+}
+
+.action-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.download-btn {
+    background: var(--success);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.download-btn:hover {
+    opacity: 0.9;
+}
+
+.cancel-btn {
+    background: var(--gray-200);
+    color: var(--gray-700);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.cancel-btn:hover {
+    background: var(--gray-300);
+}
+
+/* Job List */
+.job-list {
+    background: white;
+    padding: 24px;
+    border-radius: 6px;
+    border: 1px solid var(--gray-200);
+}
+
+.job-list h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
+.job-item {
+    border-bottom: 1px solid var(--gray-100);
+    padding: 12px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.job-item:last-child {
+    border-bottom: none;
+}
+
+.job-info {
+    flex: 1;
+}
+
+.job-item-id {
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--gray-500);
+}
+
+.job-item-time {
+    color: var(--gray-400);
+    font-size: 12px;
+    margin-top: 2px;
+}
+
+.job-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.help-text {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--gray-500);
+}
+
+/* Loading state */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+/* Tables */
+.jobs-table {
+    background: white;
+    border-radius: 6px;
+    border: 1px solid var(--gray-200);
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+th {
+    background: var(--gray-50);
+    padding: 12px;
+    text-align: left;
+    font-weight: 500;
+    color: var(--gray-700);
+    border-bottom: 1px solid var(--gray-200);
+}
+
+td {
+    padding: 12px;
+    border-bottom: 1px solid var(--gray-100);
+}
+
+tr:hover {
+    background: var(--gray-50);
+}
+
+/* Filters */
+.filters {
+    background: white;
+    padding: 16px;
+    border-radius: 6px;
+    border: 1px solid var(--gray-200);
+    margin-bottom: 16px;
+}
+
+.filters h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+/* Batch results */
+.batch-results {
+    margin-top: 16px;
+}
+
+.batch-results h4 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .container {
+        padding: 0 12px;
+    }
+    
+    .clip-form {
+        padding: 16px;
+    }
+}

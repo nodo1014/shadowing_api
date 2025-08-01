@@ -1,0 +1,89 @@
+/* Layout */
+.app-container {
+    display: flex;
+    height: 100vh;
+}
+
+/* Sidebar */
+.sidebar {
+    width: 200px;
+    background: var(--gray-900);
+    color: white;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.sidebar-header {
+    padding: 20px;
+    border-bottom: 1px solid var(--gray-700);
+}
+
+.sidebar-header h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.sidebar-nav {
+    padding: 8px 0;
+}
+
+.nav-item {
+    display: block;
+    padding: 10px 20px;
+    color: var(--gray-400);
+    text-decoration: none;
+    font-size: 14px;
+    transition: all 0.2s;
+    cursor: pointer;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+}
+
+.nav-item:hover {
+    background: var(--gray-800);
+    color: white;
+}
+
+.nav-item.active {
+    background: var(--primary);
+    color: white;
+}
+
+/* Main Content */
+.main-content {
+    flex: 1;
+    overflow-y: auto;
+    background: var(--gray-50);
+}
+
+/* Pages */
+.page {
+    display: none;
+    padding: 24px;
+}
+
+.page.active {
+    display: block;
+}
+
+.page-header {
+    background: white;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--gray-200);
+    margin: -24px -24px 24px -24px;
+}
+
+.page-title {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.page-subtitle {
+    font-size: 14px;
+    color: var(--gray-500);
+    margin-top: 4px;
+}
