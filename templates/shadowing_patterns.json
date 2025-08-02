@@ -1,60 +1,68 @@
 {
   "patterns": {
-    "type_1": {
+    "template_1": {
       "name": "Basic Shadowing",
       "description": "무자막 2회, 영한자막 2회",
       "clips": [
         {
-          "type": "no_subtitle",
+          "subtitle_mode": "no_subtitle",
+          "folder_name": "1_nosub",
           "count": 2,
           "subtitle_type": null
         },
         {
-          "type": "both_subtitle",
+          "subtitle_mode": "both_subtitle",
+          "folder_name": "3_both",
           "count": 2,
           "subtitle_type": "full"
         }
       ],
       "gap_duration": 1.5
     },
-    "type_2": {
+    "template_2": {
       "name": "Keyword Focus",
       "description": "무자막 1회, 블랭크 1회, 영한+키워드강조 2회",
       "clips": [
         {
-          "type": "no_subtitle",
+          "subtitle_mode": "no_subtitle",
+          "folder_name": "1_nosub",
           "count": 1,
           "subtitle_type": null
         },
         {
-          "type": "blank_subtitle",
+          "subtitle_mode": "blank_subtitle",
+          "folder_name": "2_blank",
           "count": 1,
           "subtitle_type": "blank"
         },
         {
-          "type": "full_subtitle",
+          "subtitle_mode": "full_subtitle",
+          "folder_name": "4_full",
           "count": 2,
           "subtitle_type": "full"
         }
       ],
       "gap_duration": 1.5
     },
-    "type_3": {
+    "template_3": {
       "name": "Progressive Learning",
-      "description": "무자막 1회, 한글만 1회, 영한자막 3회",
+      "description": "무자막 1회, 블랭크+한글 1회, 영한자막 3회",
       "clips": [
         {
-          "type": "no_subtitle",
+          "subtitle_mode": "no_subtitle",
+          "folder_name": "1_nosub",
           "count": 1,
           "subtitle_type": null
         },
         {
-          "type": "korean_only",
+          "subtitle_mode": "blank_with_korean",
+          "folder_name": "2_blank_kor",
           "count": 1,
-          "subtitle_type": "korean"
+          "subtitle_type": "blank_korean"
         },
         {
-          "type": "both_subtitle",
+          "subtitle_mode": "both_subtitle",
+          "folder_name": "3_both",
           "count": 3,
           "subtitle_type": "full"
         }

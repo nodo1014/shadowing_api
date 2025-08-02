@@ -41,7 +41,7 @@ class ClippingJob(Base):
     media_filename = Column(String)
     
     # Clipping info
-    clipping_type = Column(Integer)
+    template_number = Column(Integer)
     start_time = Column(Float)
     end_time = Column(Float)
     duration = Column(Float)
@@ -78,7 +78,7 @@ class BatchJob(Base):
     
     # Media info
     media_path = Column(String)
-    clipping_type = Column(Integer)
+    template_number = Column(Integer)
     
     # Output info
     output_files = Column(JSON)  # List of clip info
@@ -113,7 +113,7 @@ def save_job_to_db(job_id: str, job_data: dict):
             progress=job_data.get("progress", 0),
             media_path=job_data.get("media_path"),
             media_filename=os.path.basename(job_data.get("media_path", "")),
-            clipping_type=job_data.get("clipping_type"),
+            template_number=job_data.get("template_number"),
             start_time=job_data.get("start_time"),
             end_time=job_data.get("end_time"),
             duration=job_data.get("end_time", 0) - job_data.get("start_time", 0),

@@ -2,9 +2,13 @@
 Subtitle generation components
 자막 생성을 위한 독립적인 컴포넌트들
 """
+import logging
 from typing import Dict, List, Optional
 import re
 from ass_generator import ASSGenerator
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 class SubtitleGenerator:
@@ -26,13 +30,14 @@ class SubtitleGenerator:
             self.ass_generator.generate_ass([subtitle], output_path)
             return True
         except Exception as e:
-            print(f"Error generating full subtitle: {e}")
+            logger.error(f"Error generating full subtitle: {e}", exc_info=True)
             return False
     
     def generate_blank_subtitle(self, subtitle_data: Dict, output_path: str,
                               with_korean: bool = False) -> bool:
         """블랭크 자막 생성 (영어만 블랭크 또는 블랭크+한글)"""
         try:
+            logger.debug(f"[BLANK DEBUG] with_korean={with_korean}, subtitle_data keys: {subtitle_data.keys()}")
             subtitle = subtitle_data.copy()
             
             # 영어 텍스트 블랭크 처리
@@ -54,20 +59,27 @@ class SubtitleGenerator:
                 subtitle['korean'] = ''
             else:
                 # 한글은 유지
+                korean_text = None
                 if 'korean' in subtitle_data:
-                    subtitle['kor'] = subtitle_data['korean']
-                    subtitle['korean'] = subtitle_data['korean']
+                    korean_text = subtitle_data['korean']
                 elif 'kor' in subtitle_data:
-                    subtitle['kor'] = subtitle_data['kor']
-                    subtitle['korean'] = subtitle_data['kor']
+                    korean_text = subtitle_data['kor']
+                
+                logger.debug(f"[BLANK DEBUG] Korean text found: {korean_text}")
+                if korean_text:
+                    subtitle['kor'] = korean_text
+                    subtitle['korean'] = korean_text
+                else:
+                    logger.warning("[BLANK DEBUG] No Korean text found in subtitle_data!")
             
-            # 노트는 제거
-            subtitle['note'] = ''
+            # 노트는 유지 (학습에 도움)
+            
+            logger.debug(f"[BLANK DEBUG] Final subtitle: eng='{subtitle.get('eng', '')}', kor='{subtitle.get('kor', '')}'")
             
             self.ass_generator.generate_ass([subtitle], output_path)
             return True
         except Exception as e:
-            print(f"Error generating blank subtitle: {e}")
+            logger.error(f"Error generating blank subtitle: {e}", exc_info=True)
             return False
     
     def generate_korean_only_subtitle(self, subtitle_data: Dict, output_path: str,
@@ -95,7 +107,7 @@ class SubtitleGenerator:
             self.ass_generator.generate_ass([subtitle], output_path)
             return True
         except Exception as e:
-            print(f"Error generating Korean-only subtitle: {e}")
+            logger.error(f"Error generating Korean-only subtitle: {e}", exc_info=True)
             return False
     
     def _create_blanks(self, text: str, keywords: List[str]) -> str:

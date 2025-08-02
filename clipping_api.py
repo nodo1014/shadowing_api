@@ -7,6 +7,9 @@ Video Clipping RESTful API
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Any
@@ -42,12 +45,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Rate limiter 초기화
+limiter = Limiter(key_func=get_remote_address)
+
 # FastAPI 앱 초기화
 app = FastAPI(
     title="Video Clipping API",
     description="Professional video clipping service with subtitle support",
     version="1.0.0"
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS 설정 (운영 환경)
 allowed_origins = os.getenv('ALLOWED_ORIGINS', '*').split(',')
@@ -75,13 +83,15 @@ try:
     redis_client.ping()
     USE_REDIS = True
     logger.info("Redis connected successfully")
-except:
+except (redis.ConnectionError, redis.TimeoutError) as e:
     USE_REDIS = False
-    logger.warning("Redis not available, using in-memory storage")
+    logger.warning(f"Redis not available: {e}, using in-memory storage")
     redis_client = None
 
 # 작업 상태 저장소 (Redis 사용 불가시 메모리)
 job_status = {}
+# 메모리 사용량 제한을 위한 최대 작업 수
+MAX_JOB_MEMORY = 1000
 
 # 실행 중인 프로세스 추적
 active_processes = {}
@@ -91,6 +101,20 @@ executor = ThreadPoolExecutor(max_workers=int(os.getenv('MAX_WORKERS', 4)))
 
 # 작업 만료 시간 (24시간)
 JOB_EXPIRE_TIME = 86400
+
+def cleanup_memory_jobs():
+    """메모리에 저장된 오래된 작업 정리"""
+    if not USE_REDIS and len(job_status) > MAX_JOB_MEMORY:
+        # 가장 오래된 완료된 작업들 제거
+        completed_jobs = [(k, v) for k, v in job_status.items() 
+                         if v.get('status') in ['completed', 'failed']]
+        if completed_jobs:
+            # 시간순 정렬 (오래된 것부터)
+            completed_jobs.sort(key=lambda x: x[1].get('created_at', ''))
+            # 50% 제거
+            for job_id, _ in completed_jobs[:len(completed_jobs)//2]:
+                del job_status[job_id]
+                logger.info(f"Removed old job from memory: {job_id}")
 
 def cleanup_job_processes(job_id: str):
     """작업과 관련된 모든 프로세스 정리"""
@@ -232,7 +256,7 @@ class ClippingRequest(BaseModel):
     text_kor: str = Field(..., description="한국어 번역")
     note: Optional[str] = Field("", description="문장 설명")
     keywords: Optional[List[str]] = Field([], description="핵심 키워드 리스트 (Type 2에서 사용)")
-    clipping_type: int = Field(1, ge=1, le=2, description="클리핑 타입 (1 또는 2)")
+    template_number: int = Field(1, ge=1, le=3, description="템플릿 번호 (1, 2, 또는 3)")
     individual_clips: bool = Field(True, description="개별 클립 저장 여부")
 
 
@@ -240,7 +264,7 @@ class BatchClippingRequest(BaseModel):
     """배치 클리핑 요청 모델"""
     media_path: str = Field(..., description="미디어 파일 경로")
     clips: List[ClipData] = Field(..., description="클립 데이터 리스트")
-    clipping_type: int = Field(1, ge=1, le=2, description="클리핑 타입 (1 또는 2)")
+    template_number: int = Field(1, ge=1, le=3, description="템플릿 번호 (1, 2, 또는 3)")
     individual_clips: bool = Field(True, description="개별 클립 저장 여부")
     
     @validator('media_path')
@@ -261,7 +285,7 @@ class BatchClippingRequest(BaseModel):
                 "text_kor": "안녕하세요, 어떻게 지내세요?",
                 "note": "인사하기",
                 "keywords": ["Hello", "how"],
-                "clipping_type": 1,
+                "template_number": 1,
                 "individual_clips": False
             }
         }
@@ -376,7 +400,7 @@ async def restful_docs():
   "text_kor": "안녕하세요, 어떻게 지내세요?",
   "note": "인사하기",
   "keywords": ["Hello", "how"],
-  "clipping_type": 1,
+  "template_number": 1,
   "individual_clips": false
 }</code></pre>
                 <h3>Response</h3>
@@ -423,7 +447,7 @@ async def restful_docs():
       "keywords": ["Hello", "how"]
     }
   ],
-  "clipping_type": 1,
+  "template_number": 1,
   "individual_clips": false
 }</code></pre>
             </div>
@@ -476,14 +500,14 @@ async def create_clip(
     - **text_kor**: 한국어 자막
     - **note**: 설명 (선택)
     - **keywords**: 키워드 리스트 (선택)
-    - **clipping_type**: 1 (기본) 또는 2 (키워드 블랭크)
+    - **template_number**: 1 (기본), 2 (키워드 블랭크), 또는 3 (점진적 학습)
     - **individual_clips**: 개별 클립 저장 여부
     """
     # Job ID 생성
     job_id = str(uuid.uuid4())
     
     # Debug logging
-    logger.info(f"[Job {job_id}] Single clip request - Type: {request.clipping_type}, Keywords: {request.keywords}")
+    logger.info(f"[Job {job_id}] Single clip request - Type: {request.template_number}, Keywords: {request.keywords}")
     
     # 작업 상태 초기화
     job_data = {
@@ -494,7 +518,7 @@ async def create_clip(
         "individual_clips": None,
         "error": None,
         "media_path": request.media_path,
-        "clipping_type": request.clipping_type,
+        "template_number": request.template_number,
         "start_time": request.start_time,
         "end_time": request.end_time,
         "text_eng": request.text_eng,
@@ -539,9 +563,9 @@ async def process_clipping(job_id: str, request: ClippingRequest):
         job_dir = OUTPUT_DIR / job_id
         job_dir.mkdir(exist_ok=True)
         
-        # 텍스트 블랭크 처리 (Type 2인 경우 자동 생성)
+        # 텍스트 블랭크 처리 (Type 2, 3인 경우 자동 생성)
         text_eng_blank = None
-        if request.clipping_type == 2:
+        if request.template_number in [2, 3]:
             text_eng_blank = generate_blank_text(request.text_eng, request.keywords)
         
         # 자막 데이터 준비
@@ -554,38 +578,12 @@ async def process_clipping(job_id: str, request: ClippingRequest):
             'eng': request.text_eng,  # 호환성
             'kor': request.text_kor,   # 호환성
             'keywords': request.keywords,  # Type 2를 위한 키워드
-            'clipping_type': request.clipping_type,  # 클리핑 타입 전달
+            'template_number': request.template_number,  # 클리핑 타입 전달
             'text_eng_blank': text_eng_blank  # Type 2를 위한 blank 텍스트
         }
         
-        # ASS 파일 생성
+        # 자막 파일 생성은 템플릿 인코더가 자동으로 처리
         update_job_status_both(job_id, "processing", 30, message="자막 파일 생성 중...")
-        
-        ass_generator = ASSGenerator()
-        
-        # Type 1: 기본 영한 자막
-        if request.clipping_type == 1:
-            ass_path = job_dir / "subtitle.ass"
-            ass_generator.generate_ass([subtitle_data], str(ass_path))
-        
-        # Type 2: 블랭크 + 영한+노트
-        else:
-            # 블랭크 자막
-            blank_subtitle = subtitle_data.copy()
-            blank_subtitle['english'] = text_eng_blank
-            blank_subtitle['eng'] = text_eng_blank
-            blank_subtitle['korean'] = ''
-            blank_subtitle['kor'] = ''
-            blank_subtitle['note'] = ''
-            
-            blank_ass_path = job_dir / "subtitle_blank.ass"
-            ass_generator.generate_ass([blank_subtitle], str(blank_ass_path))
-            
-            # 풀 자막 (영한 + 노트) - 키워드 강조 포함
-            full_subtitle = subtitle_data.copy()
-            full_subtitle['keywords'] = request.keywords  # 키워드 추가
-            ass_path = job_dir / "subtitle_full.ass"
-            ass_generator.generate_ass([full_subtitle], str(ass_path))
         
         # 비디오 클리핑 - 템플릿 기반 접근
         update_job_status_both(job_id, "processing", 50, message="비디오 클리핑 중...")
@@ -595,7 +593,7 @@ async def process_clipping(job_id: str, request: ClippingRequest):
         output_path = job_dir / "output.mp4"
         
         # 템플릿 이름 결정
-        template_name = f"type_{request.clipping_type}"
+        template_name = f"template_{request.template_number}"
         
         # 템플릿을 사용하여 비디오 생성
         success = template_encoder.create_from_template(
@@ -832,9 +830,12 @@ async def create_batch_clips(
     job_id = str(uuid.uuid4())
     
     # Debug logging
-    logger.info(f"[Job {job_id}] Batch request - Type: {request.clipping_type}, Clips: {len(request.clips)}")
+    logger.info(f"[Job {job_id}] Batch request - Type: {request.template_number}, Clips: {len(request.clips)}")
     for i, clip in enumerate(request.clips):
         logger.info(f"  Clip {i+1}: Keywords: {clip.keywords}")
+    
+    # 메모리 정리
+    cleanup_memory_jobs()
     
     # 작업 상태 초기화
     job_status[job_id] = {
@@ -891,9 +892,9 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
             clip_dir = job_dir / f"clip_{clip_num:03d}"
             clip_dir.mkdir(exist_ok=True)
             
-            # 텍스트 블랭크 처리 (Type 2인 경우 자동 생성)
+            # 텍스트 블랭크 처리 (Type 2, 3인 경우 자동 생성)
             text_eng_blank = None
-            if request.clipping_type == 2:
+            if request.template_number in [2, 3]:
                 text_eng_blank = generate_blank_text(clip_data.text_eng, clip_data.keywords)
             
             # 자막 데이터
@@ -906,38 +907,16 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
                 'eng': clip_data.text_eng,
                 'kor': clip_data.text_kor,
                 'keywords': clip_data.keywords,  # Type 2를 위한 키워드
-                'clipping_type': request.clipping_type,  # 클리핑 타입 전달
+                'template_number': request.template_number,  # 클리핑 타입 전달
                 'text_eng_blank': text_eng_blank  # Type 2를 위한 blank 텍스트
             }
             
-            # ASS 파일 생성
-            if request.clipping_type == 1:
-                ass_path = clip_dir / "subtitle.ass"
-                ass_generator.generate_ass([subtitle_data], str(ass_path))
-            else:
-                # 블랭크 자막
-                blank_subtitle = subtitle_data.copy()
-                blank_subtitle['english'] = text_eng_blank
-                blank_subtitle['eng'] = text_eng_blank
-                blank_subtitle['korean'] = ''
-                blank_subtitle['kor'] = ''
-                blank_subtitle['note'] = ''
-                
-                blank_ass_path = clip_dir / "subtitle_blank.ass"
-                ass_generator.generate_ass([blank_subtitle], str(blank_ass_path))
-                
-                # 풀 자막 - 키워드 강조 포함
-                full_subtitle = subtitle_data.copy()
-                full_subtitle['keywords'] = clip_data.keywords  # 키워드 추가
-                ass_path = clip_dir / "subtitle_full.ass"
-                ass_generator.generate_ass([full_subtitle], str(ass_path))
-            
-            # 비디오 클리핑 - 템플릿 기반
+            # 비디오 클리핑 - 템플릿 기반 (자막 파일 자동 생성)
             output_path = clip_dir / f"clip_{clip_num:03d}.mp4"
             
             # 템플릿 기반 인코더 사용
             template_encoder = TemplateVideoEncoder()
-            template_name = f"type_{request.clipping_type}"
+            template_name = f"template_{request.template_number}"
             
             # 템플릿을 사용하여 비디오 생성
             success = template_encoder.create_from_template(
@@ -968,7 +947,7 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
         metadata = {
             "job_id": job_id,
             "media_path": str(media_path),
-            "clipping_type": request.clipping_type,
+            "template_number": request.template_number,
             "total_clips": len(request.clips),
             "output_files": output_files,
             "created_at": datetime.now().isoformat()
@@ -1111,7 +1090,7 @@ async def get_recent_jobs_api(limit: int = 50):
             "media_filename": Path(job.media_path).name if job.media_path else None,
             "start_time": job.start_time,
             "end_time": job.end_time,
-            "clipping_type": job.clipping_type,
+            "template_number": job.template_number,
             "status": job.status,
             "progress": job.progress,
             "output_file": job.output_file,
@@ -1145,7 +1124,7 @@ async def search_jobs_api(
             "media_filename": Path(job.media_path).name if job.media_path else None,
             "start_time": job.start_time,
             "end_time": job.end_time,
-            "clipping_type": job.clipping_type,
+            "template_number": job.template_number,
             "status": job.status,
             "progress": job.progress,
             "output_file": job.output_file,
@@ -1178,7 +1157,7 @@ async def get_job_detail_api(job_id: str):
         "start_time": job.start_time,
         "end_time": job.end_time,
         "duration": job.duration,
-        "clipping_type": job.clipping_type,
+        "template_number": job.template_number,
         "status": job.status,
         "progress": job.progress,
         "message": job.message,
@@ -1222,6 +1201,38 @@ async def cleanup_old_jobs_api(
         "deleted_count": result['deleted_count']
     }
 
+
+@app.get("/health", tags=["Health"])
+async def health_check():
+    """헬스체크 엔드포인트"""
+    health_status = {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "redis": USE_REDIS,
+        "memory_jobs": len(job_status) if not USE_REDIS else 0,
+        "active_processes": len(active_processes),
+        "disk_usage": {}
+    }
+    
+    try:
+        # 디스크 사용량 체크
+        import shutil
+        total, used, free = shutil.disk_usage(str(OUTPUT_DIR))
+        health_status["disk_usage"] = {
+            "total_gb": round(total / (1024**3), 2),
+            "used_gb": round(used / (1024**3), 2),
+            "free_gb": round(free / (1024**3), 2),
+            "usage_percent": round(used / total * 100, 2)
+        }
+        
+        # 디스크 공간 부족 경고
+        if health_status["disk_usage"]["usage_percent"] > 90:
+            health_status["status"] = "warning"
+            health_status["message"] = "Disk usage is over 90%"
+    except Exception as e:
+        health_status["disk_error"] = str(e)
+    
+    return health_status
 
 @app.on_event("startup")
 async def startup_event():
