@@ -27,6 +27,8 @@ import psutil
 
 from ass_generator import ASSGenerator
 from video_encoder import VideoEncoder
+from template_video_encoder import TemplateVideoEncoder
+from subtitle_generator import SubtitleGenerator
 from database import (
     init_db, save_job_to_db, update_job_status, get_job_by_id,
     get_recent_jobs, search_jobs, get_statistics, delete_job,
@@ -585,39 +587,28 @@ async def process_clipping(job_id: str, request: ClippingRequest):
             ass_path = job_dir / "subtitle_full.ass"
             ass_generator.generate_ass([full_subtitle], str(ass_path))
         
-        # 비디오 클리핑
+        # 비디오 클리핑 - 템플릿 기반 접근
         update_job_status_both(job_id, "processing", 50, message="비디오 클리핑 중...")
         
-        video_encoder = VideoEncoder()
+        # 템플릿 기반 인코더 사용
+        template_encoder = TemplateVideoEncoder()
         output_path = job_dir / "output.mp4"
         
-        # Type별로 다른 처리
-        if request.clipping_type == 1:
-            # Type 1: create_shadowing_video 사용
-            success = video_encoder.create_shadowing_video(
-                media_path=str(media_path),
-                ass_path=str(ass_path),
-                output_path=str(output_path),
-                start_time=request.start_time,
-                end_time=request.end_time,
-                padding_before=0.5,
-                padding_after=0.5,
-                subtitle_data=subtitle_data,
-                save_individual_clips=request.individual_clips
-            )
-        else:
-            # Type 2: create_type2_clip 사용
-            success = create_type2_clip(
-                encoder=video_encoder,
-                media_path=str(media_path),
-                blank_ass=str(blank_ass_path),
-                full_ass=str(ass_path),
-                output_path=str(output_path),
-                start_time=request.start_time - 0.5,  # padding
-                end_time=request.end_time + 0.5,      # padding
-                save_individual=request.individual_clips,
-                job_dir=job_dir
-            )
+        # 템플릿 이름 결정
+        template_name = f"type_{request.clipping_type}"
+        
+        # 템플릿을 사용하여 비디오 생성
+        success = template_encoder.create_from_template(
+            template_name=template_name,
+            media_path=str(media_path),
+            subtitle_data=subtitle_data,
+            output_path=str(output_path),
+            start_time=request.start_time,
+            end_time=request.end_time,
+            padding_before=0.5,
+            padding_after=0.5,
+            save_individual_clips=request.individual_clips
+        )
         
         if success:
             update_job_status_both(job_id, "processing", 90, message="클리핑 완료, 파일 정리 중...")
@@ -625,9 +616,9 @@ async def process_clipping(job_id: str, request: ClippingRequest):
             # 개별 클립 찾기
             individual_clips = []
             if request.individual_clips:
-                clips_dir = job_dir.parent / "individual_clips"
+                clips_dir = job_dir / "individual_clips"
                 if clips_dir.exists():
-                    for clip_file in clips_dir.glob("*.mp4"):
+                    for clip_file in clips_dir.glob("**/*.mp4"):
                         individual_clips.append(str(clip_file))
             
             # 메타데이터 저장
@@ -658,67 +649,7 @@ async def process_clipping(job_id: str, request: ClippingRequest):
         update_job_status_both(job_id, "failed", message=f"오류 발생: {str(e)}", error_message=str(e))
 
 
-def create_type2_clip(encoder, media_path, blank_ass, full_ass, output_path, 
-                     start_time, end_time, save_individual, job_dir):
-    """Type 2 클리핑 생성 (무자막 + 블랭크 + 풀)"""
-    temp_clips = []
-    
-    try:
-        # 1. 무자막 1회
-        for i in range(1):
-            temp_file = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
-            temp_clips.append(temp_file.name)
-            temp_file.close()
-            
-            if not encoder._encode_clip(media_path, temp_clips[-1], 
-                                       start_time, end_time - start_time, 
-                                       subtitle_file=None):
-                raise Exception(f"Failed to create no-subtitle clip {i+1}")
-        
-        # 2. 블랭크 자막 1회
-        for i in range(1):
-            temp_file = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
-            temp_clips.append(temp_file.name)
-            temp_file.close()
-            
-            if not encoder._encode_clip(media_path, temp_clips[-1], 
-                                       start_time, end_time - start_time, 
-                                       subtitle_file=blank_ass):
-                raise Exception(f"Failed to create blank subtitle clip {i+1}")
-        
-        # 3. 풀 자막 2회
-        for i in range(2):
-            temp_file = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
-            temp_clips.append(temp_file.name)
-            temp_file.close()
-            
-            if not encoder._encode_clip(media_path, temp_clips[-1], 
-                                       start_time, end_time - start_time, 
-                                       subtitle_file=full_ass):
-                raise Exception(f"Failed to create full subtitle clip {i+1}")
-        
-        # 개별 클립 저장
-        if save_individual:
-            individual_dir = job_dir / "individual_clips"
-            individual_dir.mkdir(exist_ok=True)
-            
-            import shutil
-            clip_names = ["no_sub_1", "blank_1", "full_1", "full_2"]
-            for i, (clip_path, name) in enumerate(zip(temp_clips, clip_names)):
-                dest = individual_dir / f"{name}.mp4"
-                shutil.copy2(clip_path, str(dest))
-        
-        # 클립 연결
-        if not encoder._concatenate_clips(temp_clips, output_path, gap_duration=1.5):
-            raise Exception("Failed to concatenate clips")
-        
-        return True
-        
-    finally:
-        # 임시 파일 정리
-        for temp_clip in temp_clips:
-            if os.path.exists(temp_clip):
-                os.unlink(temp_clip)
+# create_type2_clip 함수는 템플릿 기반 접근으로 대체됨
 
 
 @app.get("/api/status/{job_id}", 
@@ -973,7 +904,10 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
                 'korean': clip_data.text_kor,
                 'note': clip_data.note,
                 'eng': clip_data.text_eng,
-                'kor': clip_data.text_kor
+                'kor': clip_data.text_kor,
+                'keywords': clip_data.keywords,  # Type 2를 위한 키워드
+                'clipping_type': request.clipping_type,  # 클리핑 타입 전달
+                'text_eng_blank': text_eng_blank  # Type 2를 위한 blank 텍스트
             }
             
             # ASS 파일 생성
@@ -998,20 +932,23 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
                 ass_path = clip_dir / "subtitle_full.ass"
                 ass_generator.generate_ass([full_subtitle], str(ass_path))
             
-            # 비디오 클리핑
+            # 비디오 클리핑 - 템플릿 기반
             output_path = clip_dir / f"clip_{clip_num:03d}.mp4"
             
-            # Create shadowing video - both Type 1 and Type 2 use the same method
-            # The video_encoder will handle the different patterns based on clipping_type
-            success = video_encoder.create_shadowing_video(
+            # 템플릿 기반 인코더 사용
+            template_encoder = TemplateVideoEncoder()
+            template_name = f"type_{request.clipping_type}"
+            
+            # 템플릿을 사용하여 비디오 생성
+            success = template_encoder.create_from_template(
+                template_name=template_name,
                 media_path=str(media_path),
-                ass_path=str(ass_path),
+                subtitle_data=subtitle_data,
                 output_path=str(output_path),
                 start_time=clip_data.start_time,
                 end_time=clip_data.end_time,
                 padding_before=0.5,
                 padding_after=0.5,
-                subtitle_data=subtitle_data,
                 save_individual_clips=request.individual_clips
             )
             

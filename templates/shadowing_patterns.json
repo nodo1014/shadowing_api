@@ -1,0 +1,65 @@
+{
+  "patterns": {
+    "type_1": {
+      "name": "Basic Shadowing",
+      "description": "무자막 2회, 영한자막 2회",
+      "clips": [
+        {
+          "type": "no_subtitle",
+          "count": 2,
+          "subtitle_type": null
+        },
+        {
+          "type": "both_subtitle",
+          "count": 2,
+          "subtitle_type": "full"
+        }
+      ],
+      "gap_duration": 1.5
+    },
+    "type_2": {
+      "name": "Keyword Focus",
+      "description": "무자막 1회, 블랭크 1회, 영한+키워드강조 2회",
+      "clips": [
+        {
+          "type": "no_subtitle",
+          "count": 1,
+          "subtitle_type": null
+        },
+        {
+          "type": "blank_subtitle",
+          "count": 1,
+          "subtitle_type": "blank"
+        },
+        {
+          "type": "full_subtitle",
+          "count": 2,
+          "subtitle_type": "full"
+        }
+      ],
+      "gap_duration": 1.5
+    },
+    "type_3": {
+      "name": "Progressive Learning",
+      "description": "무자막 1회, 한글만 1회, 영한자막 3회",
+      "clips": [
+        {
+          "type": "no_subtitle",
+          "count": 1,
+          "subtitle_type": null
+        },
+        {
+          "type": "korean_only",
+          "count": 1,
+          "subtitle_type": "korean"
+        },
+        {
+          "type": "both_subtitle",
+          "count": 3,
+          "subtitle_type": "full"
+        }
+      ],
+      "gap_duration": 2.0
+    }
+  }
+}
