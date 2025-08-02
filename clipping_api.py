@@ -4,8 +4,8 @@ Video Clipping RESTful API
 전문적인 비디오 클리핑 서비스 제공
 """
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
+from fastapi.responses import FileResponse, JSONResponse, HTMLResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, validator
@@ -22,6 +22,8 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import redis
 import pickle
+import signal
+import psutil
 
 from ass_generator import ASSGenerator
 from video_encoder import VideoEncoder
@@ -79,11 +81,54 @@ except:
 # 작업 상태 저장소 (Redis 사용 불가시 메모리)
 job_status = {}
 
+# 실행 중인 프로세스 추적
+active_processes = {}
+
 # 스레드풀 설정 (CPU 집약적 작업용)
 executor = ThreadPoolExecutor(max_workers=int(os.getenv('MAX_WORKERS', 4)))
 
 # 작업 만료 시간 (24시간)
 JOB_EXPIRE_TIME = 86400
+
+def cleanup_job_processes(job_id: str):
+    """작업과 관련된 모든 프로세스 정리"""
+    if job_id in active_processes:
+        process_info = active_processes[job_id]
+        try:
+            # 메인 프로세스 종료
+            parent = psutil.Process(process_info['pid'])
+            
+            # 자식 프로세스들도 모두 종료
+            children = parent.children(recursive=True)
+            for child in children:
+                try:
+                    child.terminate()
+                except psutil.NoSuchProcess:
+                    pass
+            
+            # 잠시 대기 후 강제 종료
+            gone, alive = psutil.wait_procs(children, timeout=5)
+            for p in alive:
+                try:
+                    p.kill()
+                except psutil.NoSuchProcess:
+                    pass
+                    
+            # 메인 프로세스 종료
+            try:
+                parent.terminate()
+                parent.wait(timeout=5)
+            except (psutil.NoSuchProcess, psutil.TimeoutExpired):
+                try:
+                    parent.kill()
+                except psutil.NoSuchProcess:
+                    pass
+                    
+        except Exception as e:
+            logger.error(f"Error cleaning up processes for job {job_id}: {e}")
+        finally:
+            # 추적 목록에서 제거
+            del active_processes[job_id]
 
 def update_job_status_both(job_id: str, status: str, progress: int = None, 
                           message: str = None, output_file: str = None, error_message: str = None):
@@ -104,7 +149,7 @@ def update_job_status_both(job_id: str, status: str, progress: int = None,
     update_job_status(job_id, status, progress, output_file, error_message, message)
 
 # 디렉토리 설정
-OUTPUT_DIR = Path(os.getenv('OUTPUT_DIR', 'output'))
+OUTPUT_DIR = Path(os.getenv('OUTPUT_DIR', '/mnt/ssd1t/output'))
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 # 허용된 미디어 루트 디렉토리들 (보안)
@@ -435,6 +480,9 @@ async def create_clip(
     # Job ID 생성
     job_id = str(uuid.uuid4())
     
+    # Debug logging
+    logger.info(f"[Job {job_id}] Single clip request - Type: {request.clipping_type}, Keywords: {request.keywords}")
+    
     # 작업 상태 초기화
     job_data = {
         "status": "pending",
@@ -502,7 +550,10 @@ async def process_clipping(job_id: str, request: ClippingRequest):
             'korean': request.text_kor,
             'note': request.note,
             'eng': request.text_eng,  # 호환성
-            'kor': request.text_kor   # 호환성
+            'kor': request.text_kor,   # 호환성
+            'keywords': request.keywords,  # Type 2를 위한 키워드
+            'clipping_type': request.clipping_type,  # 클리핑 타입 전달
+            'text_eng_blank': text_eng_blank  # Type 2를 위한 blank 텍스트
         }
         
         # ASS 파일 생성
@@ -767,6 +818,81 @@ async def download_individual_clip(job_id: str, index: int):
     )
 
 
+@app.get("/api/video/{job_id}",
+         tags=["Video"],
+         summary="비디오 스트리밍")
+async def stream_video(job_id: str, request: Request):
+    """생성된 비디오를 스트리밍합니다."""
+    # Check for video file
+    output_file = None
+    
+    if job_id in job_status:
+        output_file = job_status[job_id]["output_file"]
+    else:
+        # Check database
+        db_job = get_job_by_id(job_id)
+        if db_job and db_job.output_file:
+            output_file = db_job.output_file
+    
+    if not output_file or not os.path.exists(output_file):
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    # Get file size
+    file_size = os.path.getsize(output_file)
+    
+    # Handle range requests for video streaming
+    range_header = request.headers.get('range')
+    
+    if range_header:
+        # Parse range header
+        range_match = range_header.replace('bytes=', '').split('-')
+        start = int(range_match[0]) if range_match[0] else 0
+        end = int(range_match[1]) if range_match[1] else file_size - 1
+        
+        # Read the requested chunk
+        chunk_size = end - start + 1
+        
+        def generate():
+            with open(output_file, 'rb') as video:
+                video.seek(start)
+                remaining = chunk_size
+                while remaining > 0:
+                    chunk = video.read(min(8192, remaining))
+                    if not chunk:
+                        break
+                    remaining -= len(chunk)
+                    yield chunk
+        
+        return StreamingResponse(
+            generate(),
+            status_code=206,
+            headers={
+                'Content-Range': f'bytes {start}-{end}/{file_size}',
+                'Accept-Ranges': 'bytes',
+                'Content-Length': str(chunk_size),
+                'Content-Type': 'video/mp4',
+            }
+        )
+    else:
+        # Return entire file
+        def generate():
+            with open(output_file, 'rb') as video:
+                while True:
+                    chunk = video.read(8192)
+                    if not chunk:
+                        break
+                    yield chunk
+        
+        return StreamingResponse(
+            generate(),
+            media_type='video/mp4',
+            headers={
+                'Content-Length': str(file_size),
+                'Accept-Ranges': 'bytes',
+            }
+        )
+
+
 @app.post("/api/clip/batch",
          response_model=ClippingResponse,
          tags=["Clipping"],
@@ -781,6 +907,11 @@ async def create_batch_clips(
     """
     # Job ID 생성
     job_id = str(uuid.uuid4())
+    
+    # Debug logging
+    logger.info(f"[Job {job_id}] Batch request - Type: {request.clipping_type}, Clips: {len(request.clips)}")
+    for i, clip in enumerate(request.clips):
+        logger.info(f"  Clip {i+1}: Keywords: {clip.keywords}")
     
     # 작업 상태 초기화
     job_status[job_id] = {
@@ -1206,11 +1337,55 @@ if __name__ == "__main__":
     log_config["formatters"]["default"]["fmt"] = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     log_config["formatters"]["access"]["fmt"] = '%(asctime)s - %(client_addr)s - "%(request_line)s" %(status_code)s'
     
-    uvicorn.run(
-        app,
-        host=os.getenv("HOST", "0.0.0.0"),
-        port=int(os.getenv("PORT", 8080)),
-        workers=int(os.getenv("WORKERS", 1)),
-        log_config=log_config,
-        access_log=True
-    )
+    # SSL 설정
+    ssl_keyfile = os.getenv("SSL_KEYFILE", "ssl/key.pem")
+    ssl_certfile = os.getenv("SSL_CERTFILE", "ssl/cert.pem")
+    use_ssl = os.getenv("USE_SSL", "true").lower() == "true"
+    
+    # SSL 파일 존재 여부 확인
+    if use_ssl and (not os.path.exists(ssl_keyfile) or not os.path.exists(ssl_certfile)):
+        logger.warning(f"SSL files not found: {ssl_keyfile}, {ssl_certfile}. Running without SSL.")
+        use_ssl = False
+    
+    uvicorn_config = {
+        "app": app,
+        "host": os.getenv("HOST", "0.0.0.0"),
+        "port": int(os.getenv("PORT", 8080)),
+        "workers": int(os.getenv("WORKERS", 1)),
+        "log_config": log_config,
+        "access_log": True
+    }
+    
+    # SSL 설정 추가
+    if use_ssl:
+        uvicorn_config.update({
+            "ssl_keyfile": ssl_keyfile,
+            "ssl_certfile": ssl_certfile
+        })
+        logger.info(f"Starting server with SSL on port {uvicorn_config['port']}")
+    else:
+        logger.info(f"Starting server without SSL on port {uvicorn_config['port']}")
+    
+    uvicorn.run(**uvicorn_config)
+
+@app.post("/api/job/{job_id}/cancel",
+         tags=["Job Management"],
+         summary="작업 취소",
+         response_model=Dict[str, str])
+async def cancel_job_api(job_id: str):
+    """실행 중인 작업을 취소합니다."""
+    if job_id not in job_status:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    job = job_status[job_id]
+    if job["status"] not in ["pending", "processing"]:
+        raise HTTPException(status_code=400, detail=f"Cannot cancel job in {job['status']} state")
+    
+    # 프로세스 정리
+    cleanup_job_processes(job_id)
+    
+    # 상태 업데이트
+    update_job_status_both(job_id, "cancelled", error_message="User cancelled the job")
+    
+    return {"message": "Job cancelled successfully"}
+

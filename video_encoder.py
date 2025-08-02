@@ -2,12 +2,15 @@ import subprocess
 import os
 import tempfile
 import json
+import signal
+import time
 from pathlib import Path
 from typing import List, Dict, Optional
 
 
 class VideoEncoder:
     def __init__(self):
+        self.process_timeout = 300  # 5 minutes timeout for FFmpeg operations
         # FFmpeg encoding settings based on ffmpeg_ass설정값.md
         self.encoding_settings = {
             "no_subtitle": {
@@ -50,6 +53,50 @@ class VideoEncoder:
             "korean_with_note": 2,
             "both_subtitle": 2
         }
+    
+    def _run_ffmpeg_with_timeout(self, cmd: List[str], timeout: int = None) -> tuple:
+        """Run FFmpeg command with timeout and proper cleanup"""
+        if timeout is None:
+            timeout = self.process_timeout
+            
+        process = None
+        try:
+            # Start process
+            process = subprocess.Popen(cmd, 
+                                     stdout=subprocess.PIPE, 
+                                     stderr=subprocess.PIPE,
+                                     text=True)
+            
+            # Wait for completion with timeout
+            stdout, stderr = process.communicate(timeout=timeout)
+            
+            return process.returncode, stdout, stderr
+            
+        except subprocess.TimeoutExpired:
+            print(f"[ERROR] FFmpeg process timed out after {timeout} seconds")
+            if process:
+                # Try graceful termination first
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    # Force kill if still running
+                    process.kill()
+                    process.wait()
+            return -1, "", "Process timed out"
+            
+        except Exception as e:
+            print(f"[ERROR] FFmpeg process error: {str(e)}")
+            if process and process.poll() is None:
+                process.kill()
+                process.wait()
+            return -1, "", str(e)
+            
+        finally:
+            # Ensure process is cleaned up
+            if process and process.poll() is None:
+                process.kill()
+                process.wait()
     
     def create_shadowing_video(self, media_path: str, ass_path: str, output_path: str, 
                               start_time: float = None, end_time: float = None,
@@ -116,8 +163,30 @@ class VideoEncoder:
                     temp_korean_ass_file = tempfile.NamedTemporaryFile(suffix='_korean_note.ass', delete=False)
                     temp_korean_ass_file.close()
                     korean_note_subtitle = clip_subtitle.copy()
-                    korean_note_subtitle['eng'] = ''  # Remove English text, keep Korean and note
+                    # For Type 2, use blank text with Korean subtitle
+                    if subtitle_data and 'clipping_type' in subtitle_data and subtitle_data['clipping_type'] == 2:
+                        print(f"[DEBUG] Type 2 detected - Creating blank+Korean subtitle")
+                        print(f"[DEBUG] Korean text: {korean_note_subtitle.get('kor', 'NO KOREAN')}")
+                        # Use pre-generated blank text if available
+                        if 'text_eng_blank' in subtitle_data and subtitle_data['text_eng_blank']:
+                            korean_note_subtitle['eng'] = subtitle_data['text_eng_blank']
+                            korean_note_subtitle['english'] = subtitle_data['text_eng_blank']
+                        else:
+                            korean_note_subtitle['eng'] = ''
+                            korean_note_subtitle['english'] = ''
+                        # Keep Korean text for Type 2 - ensure it's actually there
+                        if 'korean' in subtitle_data:
+                            korean_note_subtitle['kor'] = subtitle_data['korean']
+                            korean_note_subtitle['korean'] = subtitle_data['korean']
+                        elif 'kor' in subtitle_data:
+                            korean_note_subtitle['kor'] = subtitle_data['kor']
+                            korean_note_subtitle['korean'] = subtitle_data['kor']
+                    else:
+                        # Type 1: Remove English text completely, keep Korean
+                        korean_note_subtitle['eng'] = ''
+                        korean_note_subtitle['english'] = ''
                     # Note will be displayed if present in the subtitle data
+                    print(f"[DEBUG] Generating Korean ASS with: eng='{korean_note_subtitle.get('eng', '')}', kor='{korean_note_subtitle.get('kor', '')}', note='{korean_note_subtitle.get('note', '')}'")
                     ass_generator.generate_ass([korean_note_subtitle], temp_korean_ass_file.name)
                     
                     # Store both ASS file paths
@@ -313,11 +382,11 @@ class VideoEncoder:
             output_path
         ])
         
-        # Execute command
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        # Execute command with timeout
+        returncode, stdout, stderr = self._run_ffmpeg_with_timeout(cmd)
         
-        if result.returncode != 0:
-            print(f"FFmpeg error: {result.stderr}")
+        if returncode != 0:
+            print(f"FFmpeg error: {stderr}")
             return False
         
         return True

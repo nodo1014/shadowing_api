@@ -153,6 +153,7 @@ ScaledBorderAndShadow: yes
         events += "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
         
         for sub in subtitles:
+            print(f"[ASS DEBUG] Subtitle data: {sub}")
             start_time = self._format_time(sub['start_time'])
             end_time = self._format_time(sub['end_time'])
             
