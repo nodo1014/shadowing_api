@@ -4,8 +4,11 @@ import tempfile
 import json
 import signal
 import time
+import logging
 from pathlib import Path
 from typing import List, Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 
 class VideoEncoder:
@@ -73,7 +76,7 @@ class VideoEncoder:
             return process.returncode, stdout, stderr
             
         except subprocess.TimeoutExpired:
-            print(f"[ERROR] FFmpeg process timed out after {timeout} seconds")
+            logger.error(f"FFmpeg process timed out after {timeout} seconds")
             if process:
                 # Try graceful termination first
                 process.terminate()
@@ -86,7 +89,7 @@ class VideoEncoder:
             return -1, "", "Process timed out"
             
         except Exception as e:
-            print(f"[ERROR] FFmpeg process error: {str(e)}")
+            logger.error(f"FFmpeg process error: {str(e)}", exc_info=True)
             if process and process.poll() is None:
                 process.kill()
                 process.wait()
