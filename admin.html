@@ -291,14 +291,38 @@
             </div>
         </div>
 
-        <!-- 일괄 작업 -->
+        <!-- 일괄 작업 & 보기 전환 -->
         <div class="bulk-actions">
             <button class="action-btn delete-btn" onclick="deleteSelected()">선택 삭제</button>
             <button class="action-btn" onclick="cleanupOldJobs()">30일 이상 정리</button>
+            <div class="view-toggle">
+                <button class="view-btn active" id="grid-view-btn" onclick="switchView('grid')">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <rect x="1" y="1" width="6" height="6" rx="1"/>
+                        <rect x="9" y="1" width="6" height="6" rx="1"/>
+                        <rect x="1" y="9" width="6" height="6" rx="1"/>
+                        <rect x="9" y="9" width="6" height="6" rx="1"/>
+                    </svg>
+                    그리드
+                </button>
+                <button class="view-btn" id="list-view-btn" onclick="switchView('list')">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <rect x="1" y="2" width="14" height="2" rx="1"/>
+                        <rect x="1" y="7" width="14" height="2" rx="1"/>
+                        <rect x="1" y="12" width="14" height="2" rx="1"/>
+                    </svg>
+                    리스트
+                </button>
+            </div>
+        </div>
+
+        <!-- 그리드 뷰 -->
+        <div class="jobs-grid" id="jobs-grid" style="display: none;">
+            <!-- Grid items will be dynamically added here -->
         </div>
 
         <!-- 작업 목록 -->
-        <div class="jobs-table">
+        <div class="jobs-table" id="jobs-table">
             <table>
                 <thead>
                     <tr>
@@ -370,6 +394,13 @@
                 }
             } catch (error) {
                 console.error('Failed to load jobs:', error);
+            }
+        }
+        
+        // 뷰 전환 함수
+        function switchView(view) {
+            if (typeof window.switchView === 'function') {
+                window.switchView(view);
             }
         }
         

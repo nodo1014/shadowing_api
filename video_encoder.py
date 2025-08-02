@@ -506,8 +506,11 @@ class VideoEncoder:
                         silence_cmd = [
                             'ffmpeg', '-y',
                             '-f', 'lavfi',
-                            '-i', f'anullsrc=channel_layout=stereo:sample_rate=44100:duration={gap_duration}',
+                            '-i', f'anullsrc=channel_layout=stereo:sample_rate=44100',
                             '-t', str(gap_duration),
+                            '-acodec', 'pcm_s16le',
+                            '-ar', '44100',
+                            '-ac', '2',
                             silence_wav.name
                         ]
                         
@@ -572,8 +575,11 @@ class VideoEncoder:
                         simple_silence_cmd = [
                             'ffmpeg', '-y',
                             '-f', 'lavfi',
-                            '-i', f'anullsrc=channel_layout=stereo:sample_rate=44100:duration={gap_duration}',
+                            '-i', f'anullsrc=channel_layout=stereo:sample_rate=44100',
                             '-t', str(gap_duration),
+                            '-acodec', 'pcm_s16le',
+                            '-ar', '44100',
+                            '-ac', '2',
                             simple_silence_wav.name
                         ]
                         subprocess.run(simple_silence_cmd, capture_output=True, text=True)
@@ -614,9 +620,10 @@ class VideoEncoder:
                 '-i', concat_file.name,
                 '-c:v', 'copy',
                 '-c:a', 'aac',
-                '-b:a', '128k',
+                '-b:a', '192k',
                 '-ar', '44100',
                 '-ac', '2',
+                '-af', 'aresample=async=1:min_hard_comp=0.100000:first_pts=0',
                 output_path
             ]
             

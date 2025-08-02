@@ -67,4 +67,4 @@ else
 fi
 
 # Using gunicorn with uvicorn workers
-$GUNICORN_CMD $GUNICORN_ARGS --daemon
+$GUNICORN_CMD $GUNICORN_ARGS

@@ -12,9 +12,25 @@ function getStatusText(status) {
     return statusMap[status] || status;
 }
 
-// 날짜 포맷
+// 날짜 포맷 - 한국시간(KST)으로 표시
 function formatDate(dateString) {
-    return new Date(dateString).toLocaleString('ko-KR');
+    if (!dateString) return 'N/A';
+    
+    const date = new Date(dateString);
+    
+    // 한국시간(KST, UTC+9)으로 변환하여 표시
+    const options = {
+        timeZone: 'Asia/Seoul',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    };
+    
+    return date.toLocaleString('ko-KR', options);
 }
 
 // 파일 크기 포맷

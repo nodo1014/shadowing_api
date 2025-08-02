@@ -591,30 +591,9 @@ async def process_clipping(job_id: str, request: ClippingRequest):
         video_encoder = VideoEncoder()
         output_path = job_dir / "output.mp4"
         
-        # Type별 패턴 설정
+        # Type별로 다른 처리
         if request.clipping_type == 1:
-            # Type 1: 무자막 2회 + 영한자막 2회
-            video_encoder.pattern = {
-                "no_subtitle": 2,
-                "korean_with_note": 0,
-                "both_subtitle": 2
-            }
-        else:
-            # Type 2: 무자막 2회 + 블랭크 2회 + 영한자막+노트 2회
-            # 커스텀 패턴이 필요하므로 직접 구현
-            success = create_type2_clip(
-                video_encoder,
-                str(media_path),
-                str(blank_ass_path),
-                str(ass_path),
-                str(output_path),
-                request.start_time,
-                request.end_time,
-                request.individual_clips,
-                job_dir
-            )
-        
-        if request.clipping_type == 1:
+            # Type 1: create_shadowing_video 사용
             success = video_encoder.create_shadowing_video(
                 media_path=str(media_path),
                 ass_path=str(ass_path),
@@ -625,6 +604,19 @@ async def process_clipping(job_id: str, request: ClippingRequest):
                 padding_after=0.5,
                 subtitle_data=subtitle_data,
                 save_individual_clips=request.individual_clips
+            )
+        else:
+            # Type 2: create_type2_clip 사용
+            success = create_type2_clip(
+                encoder=video_encoder,
+                media_path=str(media_path),
+                blank_ass=str(blank_ass_path),
+                full_ass=str(ass_path),
+                output_path=str(output_path),
+                start_time=request.start_time - 0.5,  # padding
+                end_time=request.end_time + 0.5,      # padding
+                save_individual=request.individual_clips,
+                job_dir=job_dir
             )
         
         if success:
@@ -672,8 +664,8 @@ def create_type2_clip(encoder, media_path, blank_ass, full_ass, output_path,
     temp_clips = []
     
     try:
-        # 1. 무자막 2회
-        for i in range(2):
+        # 1. 무자막 1회
+        for i in range(1):
             temp_file = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
             temp_clips.append(temp_file.name)
             temp_file.close()
@@ -683,8 +675,8 @@ def create_type2_clip(encoder, media_path, blank_ass, full_ass, output_path,
                                        subtitle_file=None):
                 raise Exception(f"Failed to create no-subtitle clip {i+1}")
         
-        # 2. 블랭크 자막 2회
-        for i in range(2):
+        # 2. 블랭크 자막 1회
+        for i in range(1):
             temp_file = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
             temp_clips.append(temp_file.name)
             temp_file.close()
@@ -711,7 +703,7 @@ def create_type2_clip(encoder, media_path, blank_ass, full_ass, output_path,
             individual_dir.mkdir(exist_ok=True)
             
             import shutil
-            clip_names = ["no_sub_1", "no_sub_2", "blank_1", "blank_2", "full_1", "full_2"]
+            clip_names = ["no_sub_1", "blank_1", "full_1", "full_2"]
             for i, (clip_path, name) in enumerate(zip(temp_clips, clip_names)):
                 dest = individual_dir / f"{name}.mp4"
                 shutil.copy2(clip_path, str(dest))
@@ -1009,36 +1001,19 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
             # 비디오 클리핑
             output_path = clip_dir / f"clip_{clip_num:03d}.mp4"
             
-            # Type별 처리
-            if request.clipping_type == 1:
-                video_encoder.pattern = {
-                    "no_subtitle": 2,
-                    "korean_with_note": 0,
-                    "both_subtitle": 2
-                }
-                success = video_encoder.create_shadowing_video(
-                    media_path=str(media_path),
-                    ass_path=str(ass_path),
-                    output_path=str(output_path),
-                    start_time=clip_data.start_time,
-                    end_time=clip_data.end_time,
-                    padding_before=0.5,
-                    padding_after=0.5,
-                    subtitle_data=subtitle_data,
-                    save_individual_clips=request.individual_clips
-                )
-            else:
-                success = create_type2_clip(
-                    video_encoder,
-                    str(media_path),
-                    str(blank_ass_path),
-                    str(ass_path),
-                    str(output_path),
-                    clip_data.start_time,
-                    clip_data.end_time,
-                    request.individual_clips,
-                    clip_dir
-                )
+            # Create shadowing video - both Type 1 and Type 2 use the same method
+            # The video_encoder will handle the different patterns based on clipping_type
+            success = video_encoder.create_shadowing_video(
+                media_path=str(media_path),
+                ass_path=str(ass_path),
+                output_path=str(output_path),
+                start_time=clip_data.start_time,
+                end_time=clip_data.end_time,
+                padding_before=0.5,
+                padding_after=0.5,
+                subtitle_data=subtitle_data,
+                save_individual_clips=request.individual_clips
+            )
             
             if success:
                 output_files.append({
