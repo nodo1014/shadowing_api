@@ -18,7 +18,8 @@ class SubtitleGenerator:
         self.ass_generator = ASSGenerator()
     
     def generate_full_subtitle(self, subtitle_data: Dict, output_path: str, 
-                             with_keywords: bool = False) -> bool:
+                             with_keywords: bool = False, clip_duration: float = None,
+                             gap_duration: float = 0.0) -> bool:
         """완전한 영한 자막 생성"""
         try:
             subtitle = subtitle_data.copy()
@@ -27,14 +28,17 @@ class SubtitleGenerator:
             if with_keywords and 'keywords' in subtitle_data:
                 subtitle['keywords'] = subtitle_data['keywords']
             
-            self.ass_generator.generate_ass([subtitle], output_path)
+            # Pass total duration including gap for last subtitle extension
+            total_duration = clip_duration + gap_duration if clip_duration else None
+            self.ass_generator.generate_ass([subtitle], output_path, clip_duration=total_duration)
             return True
         except Exception as e:
             logger.error(f"Error generating full subtitle: {e}", exc_info=True)
             return False
     
     def generate_blank_subtitle(self, subtitle_data: Dict, output_path: str,
-                              with_korean: bool = False) -> bool:
+                              with_korean: bool = False, clip_duration: float = None,
+                              gap_duration: float = 0.0) -> bool:
         """블랭크 자막 생성 (영어만 블랭크 또는 블랭크+한글)"""
         try:
             logger.debug(f"[BLANK DEBUG] with_korean={with_korean}, subtitle_data keys: {subtitle_data.keys()}")
@@ -76,14 +80,17 @@ class SubtitleGenerator:
             
             logger.debug(f"[BLANK DEBUG] Final subtitle: eng='{subtitle.get('eng', '')}', kor='{subtitle.get('kor', '')}'")
             
-            self.ass_generator.generate_ass([subtitle], output_path)
+            # Pass total duration including gap for last subtitle extension
+            total_duration = clip_duration + gap_duration if clip_duration else None
+            self.ass_generator.generate_ass([subtitle], output_path, clip_duration=total_duration)
             return True
         except Exception as e:
             logger.error(f"Error generating blank subtitle: {e}", exc_info=True)
             return False
     
     def generate_korean_only_subtitle(self, subtitle_data: Dict, output_path: str,
-                                    with_note: bool = True) -> bool:
+                                    with_note: bool = True, clip_duration: float = None,
+                                    gap_duration: float = 0.0) -> bool:
         """한글만 있는 자막 생성"""
         try:
             subtitle = subtitle_data.copy()
@@ -104,7 +111,9 @@ class SubtitleGenerator:
             if not with_note:
                 subtitle['note'] = ''
             
-            self.ass_generator.generate_ass([subtitle], output_path)
+            # Pass total duration including gap for last subtitle extension
+            total_duration = clip_duration + gap_duration if clip_duration else None
+            self.ass_generator.generate_ass([subtitle], output_path, clip_duration=total_duration)
             return True
         except Exception as e:
             logger.error(f"Error generating Korean-only subtitle: {e}", exc_info=True)

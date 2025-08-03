@@ -54,8 +54,11 @@ class TemplateVideoEncoder(VideoEncoder):
             padded_start = None
             duration = None
         
-        # Prepare subtitle files
-        subtitle_files = self._prepare_subtitle_files(subtitle_data, template_name)
+        # Get gap duration from template
+        gap_duration = template.get('gap_duration', 1.5)
+        
+        # Prepare subtitle files with gap duration
+        subtitle_files = self._prepare_subtitle_files(subtitle_data, template_name, duration, gap_duration)
         
         # Create clips based on template
         temp_clips = []
@@ -117,7 +120,7 @@ class TemplateVideoEncoder(VideoEncoder):
                 if subtitle_file and os.path.exists(subtitle_file):
                     os.unlink(subtitle_file)
     
-    def _prepare_subtitle_files(self, subtitle_data: Dict, template_name: str) -> Dict[str, str]:
+    def _prepare_subtitle_files(self, subtitle_data: Dict, template_name: str, clip_duration: float = None, gap_duration: float = 0.0) -> Dict[str, str]:
         """템플릿에 필요한 자막 파일들을 준비"""
         subtitle_files = {}
         
@@ -138,28 +141,28 @@ class TemplateVideoEncoder(VideoEncoder):
                 full_ass = tempfile.NamedTemporaryFile(suffix='_full.ass', delete=False)
                 full_ass.close()
                 with_keywords = (template_name == "template_2")
-                self.subtitle_generator.generate_full_subtitle(subtitle_data, full_ass.name, with_keywords=with_keywords)
+                self.subtitle_generator.generate_full_subtitle(subtitle_data, full_ass.name, with_keywords=with_keywords, clip_duration=clip_duration, gap_duration=gap_duration)
                 subtitle_files['full'] = full_ass.name
                 
             elif subtitle_type == 'blank':
                 # Blank subtitle
                 blank_ass = tempfile.NamedTemporaryFile(suffix='_blank.ass', delete=False)
                 blank_ass.close()
-                self.subtitle_generator.generate_blank_subtitle(subtitle_data, blank_ass.name, with_korean=False)
+                self.subtitle_generator.generate_blank_subtitle(subtitle_data, blank_ass.name, with_korean=False, clip_duration=clip_duration, gap_duration=gap_duration)
                 subtitle_files['blank'] = blank_ass.name
                 
             elif subtitle_type == 'korean':
                 # Korean only subtitle
                 korean_ass = tempfile.NamedTemporaryFile(suffix='_korean.ass', delete=False)
                 korean_ass.close()
-                self.subtitle_generator.generate_korean_only_subtitle(subtitle_data, korean_ass.name)
+                self.subtitle_generator.generate_korean_only_subtitle(subtitle_data, korean_ass.name, clip_duration=clip_duration, gap_duration=gap_duration)
                 subtitle_files['korean'] = korean_ass.name
                 
             elif subtitle_type == 'blank_korean':
                 # Blank English with Korean subtitle
                 blank_korean_ass = tempfile.NamedTemporaryFile(suffix='_blank_korean.ass', delete=False)
                 blank_korean_ass.close()
-                self.subtitle_generator.generate_blank_subtitle(subtitle_data, blank_korean_ass.name, with_korean=True)
+                self.subtitle_generator.generate_blank_subtitle(subtitle_data, blank_korean_ass.name, with_korean=True, clip_duration=clip_duration, gap_duration=gap_duration)
                 subtitle_files['blank_korean'] = blank_korean_ass.name
                 
             # 향후 새로운 subtitle_type 추가 시 여기에 elif 추가

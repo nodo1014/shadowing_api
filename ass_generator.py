@@ -71,9 +71,15 @@ class ASSGenerator:
             adjusted_sub = sub.copy()
             
             if clip_duration is not None:
-                # Show subtitle for entire clip duration
-                adjusted_sub['start_time'] = 0.0
-                adjusted_sub['end_time'] = clip_duration
+                # For the last subtitle or if there's only one subtitle,
+                # extend it to the entire clip duration (including gap)
+                if sub == subtitles[-1] or len(subtitles) == 1:
+                    adjusted_sub['start_time'] = max(0, sub['start_time'] - time_offset)
+                    adjusted_sub['end_time'] = clip_duration
+                else:
+                    # Keep original timing for other subtitles
+                    adjusted_sub['start_time'] = max(0, sub['start_time'] - time_offset)
+                    adjusted_sub['end_time'] = max(0, sub['end_time'] - time_offset)
             else:
                 # Use original timing with offset
                 adjusted_sub['start_time'] = max(0, sub['start_time'] - time_offset)
