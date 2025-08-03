@@ -87,3 +87,303 @@
     color: var(--gray-500);
     margin-top: 4px;
 }
+
+/* Template Guide Styles */
+.templates-guide {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.template-card {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid var(--gray-200);
+    margin-bottom: 24px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
+}
+
+.template-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* Gradient backgrounds for each template */
+.gradient-bg-1 {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.gradient-bg-2 {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+}
+
+.gradient-bg-3 {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    color: white;
+}
+
+.template-header {
+    padding: 24px;
+    text-align: center;
+}
+
+.template-number {
+    font-size: 14px;
+    font-weight: 500;
+    opacity: 0.9;
+    margin-bottom: 8px;
+}
+
+.template-name {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.template-subtitle {
+    font-size: 16px;
+    opacity: 0.9;
+}
+
+.template-content {
+    background: white;
+    color: var(--gray-900);
+    padding: 24px;
+}
+
+/* Flow visualization */
+.template-flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding: 20px;
+    background: var(--gray-50);
+    border-radius: 8px;
+}
+
+.flow-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 80px;
+}
+
+.step-number {
+    background: var(--primary);
+    color: white;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.step-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--gray-700);
+    margin-bottom: 4px;
+    text-align: center;
+}
+
+.step-desc {
+    font-size: 10px;
+    color: var(--gray-500);
+    text-align: center;
+}
+
+.flow-arrow {
+    color: var(--gray-400);
+    font-size: 16px;
+    font-weight: bold;
+}
+
+/* Template features */
+.template-features {
+    display: grid;
+    gap: 12px;
+}
+
+.feature {
+    padding: 12px;
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: 6px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.feature strong {
+    color: var(--gray-700);
+}
+
+.feature.required {
+    background: #fef3c7;
+    border-color: #f59e0b;
+}
+
+.feature.warning {
+    background: #fee2e2;
+    border-color: #ef4444;
+}
+
+/* Recommendation section */
+.recommendation-section {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid var(--gray-200);
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.recommendation-section h2 {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    text-align: center;
+    color: var(--gray-800);
+}
+
+.ranking {
+    display: grid;
+    gap: 16px;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.rank-item {
+    display: flex;
+    align-items: center;
+    padding: 16px;
+    border-radius: 8px;
+    border: 2px solid;
+    position: relative;
+}
+
+.rank-item.gold {
+    background: linear-gradient(135deg, #ffd700, #ffed4a);
+    border-color: #f59e0b;
+}
+
+.rank-item.silver {
+    background: linear-gradient(135deg, #c0c0c0, #e5e7eb);
+    border-color: #9ca3af;
+}
+
+.rank-item.bronze {
+    background: linear-gradient(135deg, #cd7f32, #d97706);
+    border-color: #92400e;
+}
+
+.rank-number {
+    font-size: 18px;
+    font-weight: 700;
+    margin-right: 16px;
+    min-width: 40px;
+}
+
+.rank-template {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.rank-reason {
+    font-size: 14px;
+    opacity: 0.8;
+}
+
+/* Usage guide */
+.usage-guide {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid var(--gray-200);
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.usage-guide h2 {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    text-align: center;
+    color: var(--gray-800);
+}
+
+.guide-steps {
+    display: grid;
+    gap: 16px;
+}
+
+.guide-step {
+    display: flex;
+    align-items: flex-start;
+    padding: 16px;
+    background: var(--gray-50);
+    border-radius: 8px;
+    border-left: 4px solid var(--primary);
+}
+
+.guide-number {
+    background: var(--primary);
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    margin-right: 16px;
+    flex-shrink: 0;
+}
+
+.guide-content h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: var(--gray-800);
+}
+
+.guide-content p {
+    font-size: 14px;
+    color: var(--gray-600);
+    line-height: 1.5;
+}
+
+/* Responsive design for template guide */
+@media (max-width: 768px) {
+    .template-flow {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .flow-arrow {
+        transform: rotate(90deg);
+    }
+    
+    .ranking {
+        gap: 12px;
+    }
+    
+    .rank-item {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .rank-number {
+        margin-right: 0;
+        margin-bottom: 8px;
+    }
+}
