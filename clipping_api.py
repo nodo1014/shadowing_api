@@ -559,8 +559,13 @@ async def process_clipping(job_id: str, request: ClippingRequest):
         if not media_path:
             raise ValueError(f"Invalid media path: {request.media_path}")
         
-        # 출력 디렉토리 생성
-        job_dir = OUTPUT_DIR / job_id
+        # 날짜별 디렉토리 구조: /output/YYYY-MM-DD/job_id
+        from datetime import datetime
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        daily_dir = OUTPUT_DIR / date_str
+        daily_dir.mkdir(exist_ok=True)
+        
+        job_dir = daily_dir / job_id
         job_dir.mkdir(exist_ok=True)
         
         # 텍스트 블랭크 처리 (Type 2, 3인 경우 자동 생성)
@@ -590,7 +595,12 @@ async def process_clipping(job_id: str, request: ClippingRequest):
         
         # 템플릿 기반 인코더 사용
         template_encoder = TemplateVideoEncoder()
-        output_path = job_dir / "output.mp4"
+        
+        # 날짜시간_tp_X.mp4 형식의 파일명 생성
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{timestamp}_tp_{request.template_number}.mp4"
+        output_path = job_dir / filename
         
         # 템플릿 이름 결정
         template_name = f"template_{request.template_number}"
@@ -874,8 +884,13 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
         if not media_path:
             raise ValueError(f"Invalid media path: {request.media_path}")
         
-        # 출력 디렉토리 생성
-        job_dir = OUTPUT_DIR / job_id
+        # 날짜별 디렉토리 구조: /output/YYYY-MM-DD/job_id
+        from datetime import datetime
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        daily_dir = OUTPUT_DIR / date_str
+        daily_dir.mkdir(exist_ok=True)
+        
+        job_dir = daily_dir / job_id
         job_dir.mkdir(exist_ok=True)
         
         output_files = []
@@ -912,7 +927,10 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
             }
             
             # 비디오 클리핑 - 템플릿 기반 (자막 파일 자동 생성)
-            output_path = clip_dir / f"clip_{clip_num:03d}.mp4"
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{timestamp}_tp_{request.template_number}_c{clip_num:03d}.mp4"
+            output_path = clip_dir / filename
             
             # 템플릿 기반 인코더 사용
             template_encoder = TemplateVideoEncoder()
@@ -990,7 +1008,17 @@ async def download_batch_clip(job_id: str, clip_num: int):
     if job_status[job_id]["status"] != "completed":
         raise HTTPException(status_code=400, detail="Job not completed")
     
-    clip_path = OUTPUT_DIR / job_id / f"clip_{clip_num:03d}" / f"clip_{clip_num:03d}.mp4"
+    # 날짜별 디렉토리에서 job_id 찾기
+    job_path = None
+    for daily_dir in OUTPUT_DIR.iterdir():
+        if daily_dir.is_dir() and (daily_dir / job_id).exists():
+            job_path = daily_dir / job_id
+            break
+    
+    if not job_path:
+        raise HTTPException(status_code=404, detail="Job directory not found")
+    
+    clip_path = job_path / f"clip_{clip_num:03d}" / f"clip_{clip_num:03d}.mp4"
     if not clip_path.exists():
         raise HTTPException(status_code=404, detail="Clip not found")
     
@@ -1010,7 +1038,16 @@ async def delete_job(job_id: str):
         raise HTTPException(status_code=404, detail="Job not found")
     
     # 파일 삭제
-    job_dir = OUTPUT_DIR / job_id
+    # 날짜별 디렉토리에서 job_id 찾기
+    job_dir = None
+    for daily_dir in OUTPUT_DIR.iterdir():
+        if daily_dir.is_dir() and (daily_dir / job_id).exists():
+            job_dir = daily_dir / job_id
+            break
+    
+    if not job_dir:
+        raise HTTPException(status_code=404, detail="Job directory not found")
+    
     if job_dir.exists():
         import shutil
         shutil.rmtree(job_dir)
@@ -1030,9 +1067,13 @@ async def cleanup_expired_jobs():
             expired_jobs = []
             
             for job_id, status in job_status.items():
-                # 생성 시간 확인 (메타데이터에서)
-                metadata_path = OUTPUT_DIR / job_id / "metadata.json"
-                if metadata_path.exists():
+                # 생성 시간 확인 (메타데이터에서) - 날짜별 디렉토리에서 찾기
+                metadata_path = None
+                for daily_dir in OUTPUT_DIR.iterdir():
+                    if daily_dir.is_dir() and (daily_dir / job_id / "metadata.json").exists():
+                        metadata_path = daily_dir / job_id / "metadata.json"
+                        break
+                if metadata_path and metadata_path.exists():
                     with open(metadata_path, 'r') as f:
                         metadata = json.load(f)
                         created_at = datetime.fromisoformat(metadata.get('created_at', current_time.isoformat()))
@@ -1044,8 +1085,16 @@ async def cleanup_expired_jobs():
             # 만료된 작업 제거
             for job_id in expired_jobs:
                 try:
-                    # 파일 삭제
-                    job_dir = OUTPUT_DIR / job_id
+                    # 파일 삭제 - 날짜별 디렉토리에서 job_id 찾기
+                    job_dir = None
+                    for daily_dir in OUTPUT_DIR.iterdir():
+                        if daily_dir.is_dir() and (daily_dir / job_id).exists():
+                            job_dir = daily_dir / job_id
+                            break
+                    
+                    if not job_dir:
+                        continue  # job_dir를 찾을 수 없으면 다음으로
+                    
                     if job_dir.exists():
                         import shutil
                         shutil.rmtree(job_dir)
