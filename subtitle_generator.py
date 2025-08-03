@@ -45,7 +45,7 @@ class SubtitleGenerator:
             subtitle = subtitle_data.copy()
             
             # 영어 텍스트 블랭크 처리
-            if 'text_eng_blank' in subtitle_data:
+            if 'text_eng_blank' in subtitle_data and subtitle_data['text_eng_blank'] is not None:
                 subtitle['eng'] = subtitle_data['text_eng_blank']
                 subtitle['english'] = subtitle_data['text_eng_blank']
             else:
@@ -122,7 +122,8 @@ class SubtitleGenerator:
     def _create_blanks(self, text: str, keywords: List[str]) -> str:
         """키워드를 블랭크 처리"""
         if not keywords:
-            return text
+            # keywords가 없으면 전체 텍스트를 블랭크 처리
+            return ''.join('_' if char != ' ' else ' ' for char in text)
         
         blank_text = text
         for keyword in keywords:

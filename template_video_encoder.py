@@ -80,11 +80,20 @@ class TemplateVideoEncoder(VideoEncoder):
                     # Get subtitle file for this clip
                     subtitle_file = subtitle_files.get(clip_config['subtitle_type'])
                     
-                    # Encode the clip
-                    if not self._encode_clip(media_path, temp_clips[-1],
-                                           padded_start, duration,
-                                           subtitle_file=subtitle_file):
-                        raise Exception(f"Failed to create {clip_config['subtitle_mode']} clip")
+                    # Check if this clip should use still frame mode
+                    video_mode = clip_config.get('video_mode', 'normal')
+                    
+                    # Encode the clip based on video mode
+                    if video_mode == 'still_frame':
+                        if not self._encode_still_frame_clip(media_path, temp_clips[-1],
+                                                           padded_start, duration,
+                                                           subtitle_file=subtitle_file):
+                            raise Exception(f"Failed to create still frame {clip_config['subtitle_mode']} clip")
+                    else:
+                        if not self._encode_clip(media_path, temp_clips[-1],
+                                               padded_start, duration,
+                                               subtitle_file=subtitle_file):
+                            raise Exception(f"Failed to create {clip_config['subtitle_mode']} clip")
                     
                     # Save individual clip if requested
                     if save_individual_clips and clip_base_dir:
@@ -184,3 +193,99 @@ class TemplateVideoEncoder(VideoEncoder):
         dest_file = sub_dir / f"clip_{clip_number}_{index}.mp4"
         shutil.copy2(clip_path, str(dest_file))
         logger.debug(f"Saved: {dest_file.relative_to(base_dir)}")
+    
+    def _encode_still_frame_clip(self, input_path: str, output_path: str,
+                                start_time: float = None, duration: float = None,
+                                subtitle_file: str = None) -> bool:
+        """정지화면 클립 생성 - 첫 프레임을 고정하고 오디오와 자막 유지"""
+        import subprocess
+        import tempfile
+        import os
+        
+        try:
+            # 시작 시점의 프레임 추출
+            with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as img_file:
+                img_path = img_file.name
+            
+            # 프레임 추출 (시작 시점에서 0.1초 후)
+            extract_time = start_time + 0.1 if start_time else 0.1
+            
+            extract_cmd = [
+                'ffmpeg', '-y',
+                '-ss', str(extract_time),
+                '-i', input_path,
+                '-vframes', '1',
+                '-q:v', '2',
+                img_path
+            ]
+            
+            result = subprocess.run(extract_cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                logger.error(f"Failed to extract frame: {result.stderr}")
+                return False
+            
+            # 정지화면과 오디오 결합
+            cmd = [
+                'ffmpeg', '-y',
+                '-loop', '1',
+                '-framerate', '30',
+                '-i', img_path
+            ]
+            
+            # 오디오 추가
+            if start_time is not None:
+                cmd.extend(['-ss', str(start_time)])
+            cmd.extend(['-i', input_path])
+            
+            if duration is not None:
+                cmd.extend(['-t', str(duration)])
+            
+            # 비디오 설정 (FFmpeg 최적화 옵션 유지)
+            cmd.extend([
+                '-c:v', 'libx264',
+                '-preset', 'medium',
+                '-crf', '16',
+                '-profile:v', 'high',
+                '-level', '4.1',
+                '-pix_fmt', 'yuv420p',
+                '-tune', 'film',
+                '-x264opts', 'keyint=240:min-keyint=24:scenecut=40',
+                '-r', '30'
+            ])
+            
+            # 오디오 설정
+            cmd.extend([
+                '-c:a', 'aac',
+                '-b:a', '192k',
+                '-af', 'aresample=async=1',
+                '-map', '0:v',
+                '-map', '1:a'
+            ])
+            
+            # 자막 추가
+            if subtitle_file and os.path.exists(subtitle_file):
+                subtitle_path = subtitle_file.replace('\\', '/').replace("'", "'\\''")
+                cmd.extend(['-vf', f"ass='{subtitle_path}'"])
+            
+            cmd.extend([
+                '-shortest',
+                '-movflags', '+faststart',
+                output_path
+            ])
+            
+            logger.debug(f"Creating still frame clip: {' '.join(cmd)}")
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            # 임시 이미지 파일 삭제
+            os.unlink(img_path)
+            
+            if result.returncode != 0:
+                logger.error(f"FFmpeg error: {result.stderr}")
+                return False
+            
+            logger.info("Still frame clip created successfully")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error creating still frame clip: {e}", exc_info=True)
+            return False

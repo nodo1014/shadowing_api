@@ -1,20 +1,38 @@
 {
   "patterns": {
     "template_1": {
-      "name": "Basic Shadowing",
-      "description": "무자막 2회, 영한자막 2회",
+      "name": "Progressive Learning",
+      "description": "무자막 1회, 블랭크 1회, 블랭크+한글 1회, 영한자막 1회, 무자막 1회",
       "clips": [
         {
           "subtitle_mode": "no_subtitle",
           "folder_name": "1_nosub",
-          "count": 2,
+          "count": 1,
           "subtitle_type": null
         },
         {
+          "subtitle_mode": "blank_subtitle",
+          "folder_name": "2_blank",
+          "count": 1,
+          "subtitle_type": "blank"
+        },
+        {
+          "subtitle_mode": "blank_with_korean",
+          "folder_name": "3_blank_kor",
+          "count": 1,
+          "subtitle_type": "blank_korean"
+        },
+        {
           "subtitle_mode": "both_subtitle",
-          "folder_name": "3_both",
-          "count": 2,
+          "folder_name": "4_both",
+          "count": 1,
           "subtitle_type": "full"
+        },
+        {
+          "subtitle_mode": "no_subtitle",
+          "folder_name": "5_nosub",
+          "count": 1,
+          "subtitle_type": null
         }
       ],
       "gap_duration": 1.5
@@ -45,31 +63,6 @@
       "gap_duration": 1.5
     },
     "template_3": {
-      "name": "Progressive Learning",
-      "description": "무자막 2회, 블랭크+한글 2회, 영한자막 2회",
-      "clips": [
-        {
-          "subtitle_mode": "no_subtitle",
-          "folder_name": "1_nosub",
-          "count": 2,
-          "subtitle_type": null
-        },
-        {
-          "subtitle_mode": "blank_with_korean",
-          "folder_name": "2_blank_kor",
-          "count": 2,
-          "subtitle_type": "blank_korean"
-        },
-        {
-          "subtitle_mode": "both_subtitle",
-          "folder_name": "3_both",
-          "count": 2,
-          "subtitle_type": "full"
-        }
-      ],
-      "gap_duration": 2.0
-    },
-    "template_4": {
       "name": "Progressive Learning",
       "description": "무자막 2회, 블랭크+한글 2회, 영한자막 2회",
       "clips": [
