@@ -58,10 +58,10 @@
                         <button id="bulk-delete-btn" class="delete-btn" style="display: none;" onclick="deleteSelectedJobs()">선택 삭제</button>
                         
                         <div class="view-toggle">
-                            <button id="list-view-btn" class="view-btn active" onclick="switchView('list')">
+                            <button id="list-view-btn" class="view-btn" onclick="switchView('list')">
                                 <span>리스트</span>
                             </button>
-                            <button id="grid-view-btn" class="view-btn" onclick="switchView('grid')">
+                            <button id="grid-view-btn" class="view-btn active" onclick="switchView('grid')">
                                 <span>썸네일</span>
                             </button>
                         </div>
@@ -69,7 +69,7 @@
                 </div>
 
                 <!-- 작업 목록 - 테이블 뷰 -->
-                <div class="jobs-table" id="jobs-table">
+                <div class="jobs-table hidden" id="jobs-table">
                     <table>
                         <thead>
                             <tr>
@@ -92,7 +92,7 @@
                 </div>
                 
                 <!-- 작업 목록 - 썸네일 그리드 뷰 -->
-                <div class="jobs-grid hidden" id="jobs-grid">
+                <div class="jobs-grid" id="jobs-grid">
                     <!-- 동적으로 추가됨 -->
                 </div>
             </div>

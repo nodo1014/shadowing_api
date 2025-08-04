@@ -2,7 +2,7 @@
 
 // 전체 작업 목록 저장
 let allJobs = [];
-let currentView = 'list'; // 현재 뷰 모드
+let currentView = 'grid'; // 기본 뷰 모드를 썸네일(grid)로 변경
 
 // 최근 작업 목록 로드 (최신순 정렬)
 async function loadRecentJobs() {
