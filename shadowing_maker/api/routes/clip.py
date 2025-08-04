@@ -9,11 +9,10 @@ import uuid
 import logging
 import sys
 
-# 임시로 기존 모듈 import (나중에 리팩토링)
+# Import from adapters for backward compatibility
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
-from database import save_job_to_db, update_job_status
-from template_video_encoder import TemplateVideoEncoder
-from video_encoder import VideoEncoder
+from database_adapter import save_job_to_db, update_job_status
+from video_encoder_adapter import TemplateVideoEncoder, VideoEncoder
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["clips"])

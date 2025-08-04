@@ -8,11 +8,11 @@ import logging
 import sys
 import os
 
-# 임시로 기존 모듈 import
+# Import from adapter
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
-from database import (
+from database_adapter import (
     get_statistics, cleanup_old_jobs, delete_jobs_bulk,
-    get_recent_jobs, get_job_by_id
+    get_recent_jobs, get_job_by_id, delete_job
 )
 
 logger = logging.getLogger(__name__)
@@ -83,7 +83,6 @@ async def delete_jobs_bulk_endpoint(job_ids: list[str]):
                             output_path.unlink()
                 
                 # DB에서 삭제
-                from database import delete_job
                 if delete_job(job_id):
                     success_count += 1
                 else:

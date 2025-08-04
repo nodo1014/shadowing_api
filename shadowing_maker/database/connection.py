@@ -67,20 +67,31 @@ def init_database():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS batch_jobs (
                 id TEXT PRIMARY KEY,
-                job_id TEXT NOT NULL,
+                batch_id TEXT NOT NULL,
                 clip_index INTEGER NOT NULL,
                 status TEXT NOT NULL DEFAULT 'pending',
                 output_file TEXT,
                 error TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (job_id) REFERENCES jobs (id) ON DELETE CASCADE
+                FOREIGN KEY (batch_id) REFERENCES jobs (id) ON DELETE CASCADE
             )
         """)
         
-        # Create indexes
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_batch_job_id ON batch_jobs(job_id)")
+        # Create indexes (with error handling for existing tables)
+        try:
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)")
+        except sqlite3.OperationalError:
+            pass
+        
+        try:
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at)")
+        except sqlite3.OperationalError:
+            pass
+        
+        try:
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_batch_job_id ON batch_jobs(batch_id)")
+        except sqlite3.OperationalError:
+            pass
         
         conn.commit()
         logger.info("Database initialized successfully")

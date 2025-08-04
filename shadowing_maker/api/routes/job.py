@@ -8,10 +8,10 @@ from pathlib import Path
 import os
 import logging
 
-# 임시로 기존 모듈 import (나중에 리팩토링)
+# Import from adapter
 import sys
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
-from database import get_job_by_id, update_job_status, delete_job, get_recent_jobs, search_jobs
+from database_adapter import get_job_by_id, update_job_status, delete_job, get_recent_jobs, search_jobs
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["jobs"])

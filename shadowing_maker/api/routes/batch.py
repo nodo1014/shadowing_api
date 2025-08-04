@@ -12,9 +12,9 @@ import subprocess
 import logging
 import sys
 
-# 임시로 기존 모듈 import
+# Import from adapter
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
-from database import save_job_to_db, update_job_status, get_job_by_id
+from database_adapter import save_job_to_db, update_job_status, get_job_by_id
 from shadowing_maker.api.routes.clip import BatchClipRequest
 
 logger = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ async def process_batch_clips(job_id: str, request: BatchClipRequest):
             
             # 템플릿 또는 타입별 처리
             if request.template_number:
-                from template_video_encoder import TemplateVideoEncoder
+                from video_encoder_adapter import TemplateVideoEncoder
                 encoder = TemplateVideoEncoder()
                 subtitle_data = {
                     "text_eng": clip_data["text_eng"],
@@ -75,7 +75,7 @@ async def process_batch_clips(job_id: str, request: BatchClipRequest):
                     save_individual_clips=request.individual_clips
                 )
             else:
-                from video_encoder import VideoEncoder
+                from video_encoder_adapter import VideoEncoder
                 encoder = VideoEncoder()
                 if request.clipping_type == 1:
                     encoder.set_pattern(1, 0, 3)

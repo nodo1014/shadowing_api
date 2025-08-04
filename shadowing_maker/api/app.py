@@ -70,7 +70,7 @@ def create_app() -> FastAPI:
         try:
             import sys
             sys.path.append(str(Path(__file__).parent.parent.parent))
-            from database import init_db
+            from database_adapter import init_db
             init_db()
             logger.info("Database initialized")
         except Exception as e:
