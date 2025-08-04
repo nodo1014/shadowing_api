@@ -18,9 +18,9 @@
                 <button class="nav-item active" data-page="manage">클립 관리</button>
                 <button class="nav-item" data-page="single">단일 클립 생성</button>
                 <button class="nav-item" data-page="batch">배치 클립 생성</button>
-                <button class="nav-item" data-page="templates">🎬 템플릿 가이드</button>
+                <button class="nav-item" data-page="templates">템플릿 가이드</button>
                 <button class="nav-item" data-page="admin">관리자</button>
-                <a href="/restful" class="nav-item" style="text-decoration: none; text-align: center;">🔌 RESTful API</a>
+                <a href="/restful" class="nav-item" style="text-decoration: none; text-align: center;">RESTful API</a>
             </nav>
         </aside>
 
@@ -33,12 +33,12 @@
                     <p class="page-subtitle">생성된 클립을 조회하고 관리합니다</p>
                 </div>
 
-                <!-- 필터 -->
+                <!-- 필터 및 뷰 전환 -->
                 <div class="filters">
                     <div class="filter-row">
                         <div class="form-group">
                             <label>상태</label>
-                            <select id="filter-status">
+                            <select id="filter-status" onchange="applyFilters()">
                                 <option value="">전체</option>
                                 <option value="completed">완료</option>
                                 <option value="processing">처리중</option>
@@ -47,27 +47,41 @@
                         </div>
                         <div class="form-group">
                             <label>기간</label>
-                            <select id="filter-period">
+                            <select id="filter-period" onchange="applyFilters()">
+                                <option value="all">전체</option>
                                 <option value="today">오늘</option>
                                 <option value="week">이번 주</option>
                                 <option value="month">이번 달</option>
-                                <option value="all">전체</option>
                             </select>
                         </div>
                         <button class="submit-btn" onclick="refreshJobs()">새로고침</button>
+                        <button id="bulk-delete-btn" class="delete-btn" style="display: none;" onclick="deleteSelectedJobs()">선택 삭제</button>
+                        
+                        <div class="view-toggle">
+                            <button id="list-view-btn" class="view-btn active" onclick="switchView('list')">
+                                <span>리스트</span>
+                            </button>
+                            <button id="grid-view-btn" class="view-btn" onclick="switchView('grid')">
+                                <span>썸네일</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <!-- 작업 목록 -->
-                <div class="jobs-table">
+                <!-- 작업 목록 - 테이블 뷰 -->
+                <div class="jobs-table" id="jobs-table">
                     <table>
                         <thead>
                             <tr>
+                                <th style="width: 40px;">
+                                    <input type="checkbox" id="select-all" onchange="toggleAllJobs(this)">
+                                </th>
                                 <th>생성일시</th>
                                 <th>미디어</th>
                                 <th>구간</th>
-                                <th>타입</th>
+                                <th>템플릿</th>
                                 <th>상태</th>
+                                <th>영문 자막</th>
                                 <th>작업</th>
                             </tr>
                         </thead>
@@ -75,6 +89,11 @@
                             <!-- 동적으로 추가됨 -->
                         </tbody>
                     </table>
+                </div>
+                
+                <!-- 작업 목록 - 썸네일 그리드 뷰 -->
+                <div class="jobs-grid hidden" id="jobs-grid">
+                    <!-- 동적으로 추가됨 -->
                 </div>
             </div>
 
@@ -217,13 +236,13 @@
             <!-- 템플릿 가이드 페이지 -->
             <div class="page" id="templates-page">
                 <div class="page-header">
-                    <h1 class="page-title">🎬 템플릿 가이드</h1>
-                    <p class="page-subtitle">각 템플릿의 특징과 활용법을 알아보세요</p>
+                    <h1 class="page-title">템플릿 가이드</h1>
+                    <p class="page-subtitle">각 템플릿의 특징과 활용법</p>
                 </div>
 
                 <div class="templates-guide">
                     <!-- Template 1 -->
-                    <div class="template-card gradient-bg-1">
+                    <div class="template-card">
                         <div class="template-header">
                             <div class="template-number">Template 1</div>
                             <div class="template-name">Progressive Learning</div>
@@ -265,23 +284,14 @@
                             
                             <div class="template-features">
                                 <div class="feature">
-                                    <strong>👥 추천 대상:</strong> 체계적 학습을 원하는 모든 학습자
-                                </div>
-                                <div class="feature">
-                                    <strong>⏱️ 학습 시간:</strong> 약 25-30초 (5단계 × 5초 + 갭)
-                                </div>
-                                <div class="feature">
-                                    <strong>🎯 학습 효과:</strong> 듣기 → 추론 → 이해 → 확인 → 복습의 완벽한 사이클
-                                </div>
-                                <div class="feature">
-                                    <strong>🎬 유튜브 썸네일:</strong> "완벽한 5단계 영어 학습법", "shadowing 마스터 과정"
+                                    <strong>유튜브 썸네일:</strong> "완벽한 5단계 영어 학습법", "shadowing 마스터 과정"
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     <!-- Template 2 -->
-                    <div class="template-card gradient-bg-2">
+                    <div class="template-card">
                         <div class="template-header">
                             <div class="template-number">Template 2</div>
                             <div class="template-name">Keyword Focus</div>
@@ -311,26 +321,17 @@
                             
                             <div class="template-features">
                                 <div class="feature">
-                                    <strong>👥 추천 대상:</strong> 시간이 부족하지만 효율적 학습을 원하는 학습자
-                                </div>
-                                <div class="feature">
-                                    <strong>⏱️ 학습 시간:</strong> 약 18-20초 (4단계 × 5초 + 갭)
-                                </div>
-                                <div class="feature">
-                                    <strong>🎯 학습 효과:</strong> 핵심 단어 집중 암기, 빠른 복습에 최적
-                                </div>
-                                <div class="feature">
-                                    <strong>🎬 유튜브 썸네일:</strong> "10분만에 핵심 단어 마스터", "스마트 영어 학습법"
+                                    <strong>유튜브 썸네일:</strong> "10분만에 핵심 단어 마스터", "스마트 영어 학습법"
                                 </div>
                                 <div class="feature required">
-                                    <strong>⚠️ 필수사항:</strong> keywords 배열 반드시 제공
+                                    <strong>필수사항:</strong> keywords 배열 반드시 제공
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     <!-- Template 3 -->
-                    <div class="template-card gradient-bg-3">
+                    <div class="template-card">
                         <div class="template-header">
                             <div class="template-number">Template 3</div>
                             <div class="template-name">Progressive Learning</div>
@@ -360,49 +361,15 @@
                             
                             <div class="template-features">
                                 <div class="feature">
-                                    <strong>👥 추천 대상:</strong> 충분한 반복 학습을 선호하는 학습자
+                                    <strong>유튜브 썸네일:</strong> "검증된 shadowing 학습법", "전통적인 단계별 영어"
                                 </div>
-                                <div class="feature">
-                                    <strong>⏱️ 학습 시간:</strong> 약 42-45초 (6단계 × 7초 + 갭)
-                                </div>
-                                <div class="feature">
-                                    <strong>🎯 학습 효과:</strong> 각 단계별 충분한 반복으로 확실한 학습
-                                </div>
-                                <div class="feature">
-                                    <strong>🎬 유튜브 썸네일:</strong> "검증된 shadowing 학습법", "전통적인 단계별 영어"
-                                </div>
-                                <div class="feature warning">
-                                    <strong>⚠️ 주의사항:</strong> 가장 긴 학습 시간 (집중력 필요)
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 추천 순위 -->
-                    <div class="recommendation-section">
-                        <h2>🏆 학습자 추천 순위</h2>
-                        <div class="ranking">
-                            <div class="rank-item gold">
-                                <div class="rank-number">1위</div>
-                                <div class="rank-template">Template 2</div>
-                                <div class="rank-reason">가장 짧고 효율적 (18-20초)</div>
-                            </div>
-                            <div class="rank-item silver">
-                                <div class="rank-number">2위</div>
-                                <div class="rank-template">Template 1</div>
-                                <div class="rank-reason">체계적이고 완벽함 (25-30초)</div>
-                            </div>
-                            <div class="rank-item bronze">
-                                <div class="rank-number">3위</div>
-                                <div class="rank-template">Template 3</div>
-                                <div class="rank-reason">충분한 반복이지만 김 (42-45초)</div>
                             </div>
                         </div>
                     </div>
 
                     <!-- 사용법 가이드 -->
                     <div class="usage-guide">
-                        <h2>💡 사용법 가이드</h2>
+                        <h2>사용법 가이드</h2>
                         <div class="guide-steps">
                             <div class="guide-step">
                                 <div class="guide-number">1</div>

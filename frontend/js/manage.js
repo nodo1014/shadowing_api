@@ -1,39 +1,36 @@
 // 클립 관리 페이지 스크립트
 
-// 최근 작업 목록 로드
+// 전체 작업 목록 저장
+let allJobs = [];
+let currentView = 'list'; // 현재 뷰 모드
+
+// 최근 작업 목록 로드 (최신순 정렬)
 async function loadRecentJobs() {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/admin/jobs/recent?limit=20`);
+        const response = await fetch(`${API_BASE_URL}/api/admin/jobs/recent?limit=100`);
         if (!response.ok) {
             throw new Error('Failed to load jobs');
         }
         
-        const jobs = await response.json();
-        displayJobs(jobs);
+        allJobs = await response.json();
+        // 최신순으로 정렬 (이미 정렬되어 있을 수 있지만 확실하게)
+        allJobs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        applyFilters();
     } catch (error) {
         console.error('Error loading jobs:', error);
-        showError('작업 목록을 불러올 수 없습니다.');
+        const tbody = document.getElementById('jobs-list');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--danger);">작업 목록을 불러올 수 없습니다.</td></tr>';
+        }
     }
 }
 
-// 현재 뷰 모드 (기본값: grid)
-let currentView = localStorage.getItem('jobsViewMode') || 'grid';
-
 // 작업 목록 표시
 function displayJobs(jobs) {
-    // 저장된 뷰 모드 적용
     if (currentView === 'grid') {
         displayJobsGrid(jobs);
-        document.getElementById('grid-view-btn')?.classList.add('active');
-        document.getElementById('list-view-btn')?.classList.remove('active');
-        document.getElementById('jobs-grid').style.display = 'grid';
-        document.getElementById('jobs-table').style.display = 'none';
     } else {
         displayJobsList(jobs);
-        document.getElementById('list-view-btn')?.classList.add('active');
-        document.getElementById('grid-view-btn')?.classList.remove('active');
-        document.getElementById('jobs-table').style.display = 'block';
-        document.getElementById('jobs-grid').style.display = 'none';
     }
 }
 
@@ -43,29 +40,80 @@ function displayJobsList(jobs) {
     if (!tbody) return;
     
     tbody.innerHTML = '';
+    selectedJobs.clear(); // 선택 초기화
     
     if (jobs.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--gray-500);">작업이 없습니다</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--gray-500);">작업이 없습니다</td></tr>';
         return;
     }
     
     jobs.forEach(job => {
         const tr = document.createElement('tr');
+        const mediaName = job.media_path ? job.media_path.split('/').pop() : 'N/A';
+        const templateType = job.template_number ? `Template ${job.template_number}` : `Type ${job.clipping_type || 1}`;
+        
         tr.innerHTML = `
-            <td>${formatDate(job.created_at)}</td>
-            <td title="${job.media_path}">${job.media_filename || 'N/A'}</td>
-            <td>${job.start_time?.toFixed(1)}s - ${job.end_time?.toFixed(1)}s</td>
-            <td>Type ${job.clipping_type}</td>
-            <td><span class="status-badge ${job.status}">${getStatusText(job.status)}</span></td>
             <td>
-                ${job.status === 'completed' ? 
-                    `<button class="preview-btn" onclick="previewVideo('${job.id}')">미리보기</button>
-                     <button class="download-btn" onclick="downloadJob('${job.id}')">다운로드</button>` : 
-                    `<button class="cancel-btn" onclick="deleteJob('${job.id}')">삭제</button>`}
+                <input type="checkbox" class="job-checkbox" data-job-id="${job.id}" 
+                       onchange="toggleJobSelection('${job.id}', this)">
+            </td>
+            <td>${formatDate(job.created_at)}</td>
+            <td title="${job.media_path || ''}">${mediaName}</td>
+            <td>${job.start_time ? job.start_time.toFixed(1) : '0'}s - ${job.end_time ? job.end_time.toFixed(1) : '0'}s</td>
+            <td>${templateType}</td>
+            <td><span class="status-badge ${job.status}">${getStatusText(job.status)}</span></td>
+            <td>${job.text_eng || '-'}</td>
+            <td>
+                ${job.status === 'completed' && job.output_file ? 
+                    `<button class="download-btn" onclick="downloadJob('${job.id}')">다운로드</button>` : 
+                    `<button class="delete-btn" onclick="deleteJob('${job.id}')">삭제</button>`}
             </td>
         `;
         tbody.appendChild(tr);
     });
+    
+    updateBulkActions();
+}
+
+
+// 필터 적용
+window.applyFilters = function() {
+    const statusFilter = document.getElementById('filter-status')?.value;
+    const periodFilter = document.getElementById('filter-period')?.value || 'all';
+    
+    let filteredJobs = [...allJobs];
+    
+    // 상태 필터
+    if (statusFilter) {
+        filteredJobs = filteredJobs.filter(job => job.status === statusFilter);
+    }
+    
+    // 기간 필터
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    if (periodFilter === 'today') {
+        filteredJobs = filteredJobs.filter(job => {
+            const jobDate = new Date(job.created_at);
+            return jobDate >= today;
+        });
+    } else if (periodFilter === 'week') {
+        const weekAgo = new Date(today);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        filteredJobs = filteredJobs.filter(job => {
+            const jobDate = new Date(job.created_at);
+            return jobDate >= weekAgo;
+        });
+    } else if (periodFilter === 'month') {
+        const monthAgo = new Date(today);
+        monthAgo.setMonth(monthAgo.getMonth() - 1);
+        filteredJobs = filteredJobs.filter(job => {
+            const jobDate = new Date(job.created_at);
+            return jobDate >= monthAgo;
+        });
+    }
+    
+    displayJobs(filteredJobs);
 }
 
 // 그리드 뷰 표시
@@ -74,144 +122,119 @@ function displayJobsGrid(jobs) {
     if (!grid) return;
     
     grid.innerHTML = '';
+    selectedJobs.clear(); // 선택 초기화
     
     if (jobs.length === 0) {
-        grid.innerHTML = '<div style="text-align: center; color: var(--gray-500); grid-column: 1/-1;">작업이 없습니다</div>';
+        grid.innerHTML = '<div style="text-align: center; color: var(--gray-500); width: 100%; padding: 40px;">작업이 없습니다</div>';
         return;
     }
     
     jobs.forEach(job => {
         const card = document.createElement('div');
         card.className = 'job-card';
+        const mediaName = job.media_path ? job.media_path.split('/').pop() : 'N/A';
+        const templateType = job.template_number ? `Template ${job.template_number}` : `Type ${job.clipping_type || 1}`;
+        
+        // 비디오 미리보기 생성
+        const thumbnailContent = job.status === 'completed' && job.output_file ? 
+            `<video src="${API_BASE_URL}/api/video/${job.id}" 
+                    controls
+                    controlsList="nodownload"
+                    preload="metadata" 
+                    onloadedmetadata="this.currentTime = 0.1"
+                    onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            </video>
+            <div class="no-preview" style="display: none;">
+                <span>미리보기 없음</span>
+            </div>` :
+            `<div class="no-preview">
+                <span>${job.status === 'processing' ? '처리중...' : '미리보기 없음'}</span>
+            </div>`;
+        
         card.innerHTML = `
+            <div class="job-card-selection">
+                <input type="checkbox" class="job-checkbox" data-job-id="${job.id}" 
+                       onchange="toggleJobSelection('${job.id}', this)">
+            </div>
             <div class="job-card-thumbnail">
-                ${job.status === 'completed' ? 
-                    `<video src="${API_BASE_URL}/api/video/${job.id}" muted preload="metadata"></video>` :
-                    `<div class="no-preview">미리보기 없음</div>`
-                }
+                ${thumbnailContent}
                 <span class="job-card-status ${job.status}">${getStatusText(job.status)}</span>
             </div>
             <div class="job-card-body">
-                <div class="job-card-title" title="${job.media_path}">
-                    ${job.media_filename || 'N/A'}
+                <div class="job-card-header">
+                    <div class="job-card-title" title="${job.media_path || ''}">${mediaName}</div>
+                    <div class="job-card-template">${templateType}</div>
                 </div>
                 <div class="job-card-info">
-                    <div>${formatDate(job.created_at)}</div>
-                    <div>${job.start_time?.toFixed(1)}s - ${job.end_time?.toFixed(1)}s | Type ${job.clipping_type}</div>
+                    <div class="job-card-date">${formatDate(job.created_at)}</div>
+                    <div class="job-card-details">
+                        <span class="time-range">${job.start_time ? job.start_time.toFixed(1) : '0'}s - ${job.end_time ? job.end_time.toFixed(1) : '0'}s</span>
+                        <span class="duration">(${job.start_time && job.end_time ? (job.end_time - job.start_time).toFixed(1) : '0'}초)</span>
+                    </div>
+                    <div class="job-card-text" title="${job.text_eng || ''}">${job.text_eng || '-'}</div>
                 </div>
                 <div class="job-card-actions">
-                    ${job.status === 'completed' ? 
-                        `<button class="preview-btn" onclick="previewVideo('${job.id}')">미리보기</button>
-                         <button class="download-btn" onclick="downloadJob('${job.id}')">다운로드</button>` : 
-                        `<button class="delete-btn" onclick="deleteJob('${job.id}')">삭제</button>`
-                    }
+                    ${job.status === 'completed' && job.output_file ? 
+                        `<button class="download-btn" onclick="downloadJob('${job.id}')">다운로드</button>` : 
+                        `<button class="delete-btn" onclick="deleteJob('${job.id}')">삭제</button>`}
                 </div>
             </div>
         `;
         grid.appendChild(card);
     });
+    
+    updateBulkActions();
 }
 
 // 뷰 전환
-function switchView(view) {
+window.switchView = function(view) {
     currentView = view;
-    localStorage.setItem('jobsViewMode', view);
-    loadRecentJobs();
+    
+    // 버튼 활성화 상태 변경
+    const listBtn = document.getElementById('list-view-btn');
+    const gridBtn = document.getElementById('grid-view-btn');
+    
+    if (listBtn && gridBtn) {
+        listBtn.classList.toggle('active', view === 'list');
+        gridBtn.classList.toggle('active', view === 'grid');
+    }
+    
+    // 뷰 표시/숨김
+    const tableView = document.getElementById('jobs-table');
+    const gridView = document.getElementById('jobs-grid');
+    
+    if (tableView && gridView) {
+        if (view === 'grid') {
+            tableView.classList.add('hidden');
+            gridView.classList.remove('hidden');
+        } else {
+            tableView.classList.remove('hidden');
+            gridView.classList.add('hidden');
+        }
+    }
+    
+    // 데이터 다시 표시
+    applyFilters();
 }
 
 // 작업 새로고침
-async function refreshJobs() {
-    const status = document.getElementById('filter-status')?.value;
-    const period = document.getElementById('filter-period')?.value;
-    
-    // 현재는 단순히 최근 목록만 로드
-    // TODO: 필터 적용된 검색 구현
+window.refreshJobs = async function() {
     await loadRecentJobs();
 }
 
 // 작업 다운로드
-function downloadJob(jobId) {
+window.downloadJob = function(jobId) {
     window.open(`${API_BASE_URL}/api/download/${jobId}`, '_blank');
 }
 
-// 비디오 미리보기
-function previewVideo(jobId) {
-    const modal = document.getElementById('video-preview-modal');
-    const video = document.getElementById('preview-video');
-    
-    if (!modal || !video) {
-        // 모달이 없으면 생성
-        createVideoPreviewModal();
-        return previewVideo(jobId);
-    }
-    
-    // 비디오 소스 설정
-    video.src = `${API_BASE_URL}/api/video/${jobId}`;
-    video.load();
-    
-    // 모달 표시
-    modal.style.display = 'block';
-    
-    // ESC 키로 닫기
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            closeVideoPreview();
-        }
-    });
-}
-
-// 비디오 미리보기 닫기
-function closeVideoPreview() {
-    const modal = document.getElementById('video-preview-modal');
-    const video = document.getElementById('preview-video');
-    
-    if (modal) {
-        modal.style.display = 'none';
-    }
-    
-    if (video) {
-        video.pause();
-        video.src = '';
-    }
-}
-
-// 비디오 미리보기 모달 생성
-function createVideoPreviewModal() {
-    const modal = document.createElement('div');
-    modal.id = 'video-preview-modal';
-    modal.className = 'video-modal';
-    modal.innerHTML = `
-        <div class="video-modal-content">
-            <div class="video-modal-header">
-                <h3>비디오 미리보기</h3>
-                <button class="video-modal-close" onclick="closeVideoPreview()">&times;</button>
-            </div>
-            <div class="video-modal-body">
-                <video id="preview-video" controls width="100%" height="auto">
-                    브라우저가 비디오를 지원하지 않습니다.
-                </video>
-            </div>
-        </div>
-    `;
-    
-    // 모달 외부 클릭 시 닫기
-    modal.addEventListener('click', function(e) {
-        if (e.target === modal) {
-            closeVideoPreview();
-        }
-    });
-    
-    document.body.appendChild(modal);
-}
-
 // 작업 삭제
-async function deleteJob(jobId) {
+window.deleteJob = async function(jobId) {
     if (!confirm('이 작업을 삭제하시겠습니까?')) {
         return;
     }
     
     try {
-        const response = await fetch(`${API_BASE_URL}/api/job/${jobId}`, {
+        const response = await fetch(`${API_BASE_URL}/api/job/${jobId}?force=true`, {
             method: 'DELETE'
         });
         
@@ -219,10 +242,133 @@ async function deleteJob(jobId) {
             showSuccess('작업이 삭제되었습니다.');
             await loadRecentJobs();
         } else {
-            throw new Error('삭제 실패');
+            // 파일이 없어도 DB에서 삭제 시도
+            const forceResponse = await fetch(`${API_BASE_URL}/api/job/${jobId}?force=true`, {
+                method: 'DELETE'
+            });
+            if (forceResponse.ok) {
+                showSuccess('DB 레코드가 삭제되었습니다.');
+                await loadRecentJobs();
+            } else {
+                throw new Error('삭제 실패');
+            }
         }
     } catch (error) {
         console.error('Delete failed:', error);
         showError('작업 삭제에 실패했습니다.');
+    }
+}
+
+// 비디오 재생
+window.playVideo = function(jobId) {
+    const video = document.querySelector(`.job-card video[src*="${jobId}"]`);
+    if (video) {
+        if (video.paused) {
+            video.play();
+        } else {
+            video.pause();
+        }
+    }
+}
+
+// 선택된 항목 추적
+let selectedJobs = new Set();
+
+// 선택 토글
+window.toggleJobSelection = function(jobId, checkbox) {
+    if (checkbox.checked) {
+        selectedJobs.add(jobId);
+    } else {
+        selectedJobs.delete(jobId);
+    }
+    updateBulkActions();
+}
+
+// 전체 선택/해제
+window.toggleAllJobs = function(checkbox) {
+    const checkboxes = document.querySelectorAll('.job-checkbox');
+    checkboxes.forEach(cb => {
+        cb.checked = checkbox.checked;
+        const jobId = cb.getAttribute('data-job-id');
+        if (checkbox.checked) {
+            selectedJobs.add(jobId);
+        } else {
+            selectedJobs.delete(jobId);
+        }
+    });
+    updateBulkActions();
+}
+
+// 대량 작업 버튼 업데이트
+function updateBulkActions() {
+    const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
+    if (bulkDeleteBtn) {
+        bulkDeleteBtn.style.display = selectedJobs.size > 0 ? 'inline-block' : 'none';
+        bulkDeleteBtn.textContent = `선택 삭제 (${selectedJobs.size})`;
+    }
+}
+
+// 선택 항목 삭제
+window.deleteSelectedJobs = async function() {
+    if (selectedJobs.size === 0) {
+        showError('선택된 항목이 없습니다.');
+        return;
+    }
+    
+    if (!confirm(`선택된 ${selectedJobs.size}개 항목을 삭제하시겠습니까?\n(파일이 없어도 DB 기록은 삭제됩니다)`)) {
+        return;
+    }
+    
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (const jobId of selectedJobs) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/job/${jobId}?force=true`, {
+                method: 'DELETE'
+            });
+            
+            if (response.ok) {
+                successCount++;
+            } else {
+                failCount++;
+            }
+        } catch (error) {
+            failCount++;
+        }
+    }
+    
+    if (successCount > 0) {
+        showSuccess(`${successCount}개 항목이 삭제되었습니다.`);
+    }
+    if (failCount > 0) {
+        showError(`${failCount}개 항목 삭제에 실패했습니다.`);
+    }
+    
+    selectedJobs.clear();
+    await loadRecentJobs();
+}
+
+// DB 정리 - 파일이 없는 레코드 삭제
+window.cleanupOrphanedRecords = async function() {
+    if (!confirm('파일이 없는 DB 레코드를 모두 정리하시겠습니까?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/admin/cleanup`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            showSuccess(`${result.deleted_count}개의 고아 레코드가 정리되었습니다.`);
+            await loadRecentJobs();
+        } else {
+            throw new Error('정리 실패');
+        }
+    } catch (error) {
+        console.error('Cleanup failed:', error);
+        showError('DB 정리에 실패했습니다.');
     }
 }

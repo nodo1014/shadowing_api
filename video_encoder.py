@@ -350,10 +350,13 @@ class VideoEncoder:
         if subtitle_file:
             # Use absolute path and escape special characters for FFmpeg filter
             abs_path = os.path.abspath(subtitle_file)
-            # Escape special characters for FFmpeg filter syntax
-            # Replace backslashes, colons, single quotes, and square brackets
-            # Simple and reliable method: wrap in single quotes
-            video_filter = f"scale={settings['width']}:{settings['height']},ass='{abs_path}'"
+            # Properly escape for FFmpeg ass filter:
+            # Replace backslash with forward slash (Windows compatibility)
+            # Escape colons, brackets, and other special characters
+            escaped_path = abs_path.replace('\\', '/').replace(':', '\\:')
+            escaped_path = escaped_path.replace('[', '\\[').replace(']', '\\]')
+            escaped_path = escaped_path.replace(',', '\\,').replace("'", "\\'")
+            video_filter = f"scale={settings['width']}:{settings['height']},ass={escaped_path}"
         
         cmd.extend(['-vf', video_filter])
         

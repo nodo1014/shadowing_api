@@ -143,6 +143,12 @@ class TemplateVideoEncoder(VideoEncoder):
             if clip['subtitle_type']:
                 needed_types.add(clip['subtitle_type'])
         
+        # Add timing information if not present
+        if 'start_time' not in subtitle_data:
+            subtitle_data['start_time'] = 0.0
+        if 'end_time' not in subtitle_data:
+            subtitle_data['end_time'] = clip_duration if clip_duration else 5.0
+        
         # 필요한 자막 파일들 생성
         for subtitle_type in needed_types:
             if subtitle_type == 'full':

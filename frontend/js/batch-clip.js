@@ -152,20 +152,47 @@ function updateBatchStatus(status) {
     
     // 결과 표시
     if (status.status === 'completed' && status.output_files) {
-        displayBatchResults(status.output_files);
+        displayBatchResults(status.output_files, status.combined_video);
     }
 }
 
 // 배치 결과 표시
-function displayBatchResults(files) {
+function displayBatchResults(files, combinedVideo) {
     const resultsDiv = document.getElementById('batch-results');
-    resultsDiv.innerHTML = '<h4>완료된 클립:</h4>';
+    resultsDiv.innerHTML = '<h4>생성된 파일:</h4>';
+    
+    // 통합 비디오가 있으면 먼저 표시
+    if (combinedVideo) {
+        const combinedItem = document.createElement('div');
+        combinedItem.className = 'batch-item combined';
+        combinedItem.innerHTML = `
+            <span style="font-weight: bold; color: var(--primary);">📹 통합 Shadowing 비디오 (전체 ${files.length - 1}개 클립)</span>
+            <button class="download-btn" style="background: var(--primary);" onclick="downloadCombinedVideo('${batchJobId}')">
+                통합 비디오 다운로드
+            </button>
+        `;
+        resultsDiv.appendChild(combinedItem);
+        
+        // 구분선
+        const divider = document.createElement('hr');
+        divider.style.margin = '16px 0';
+        resultsDiv.appendChild(divider);
+    }
+    
+    // 개별 클립들 표시
+    const individualTitle = document.createElement('h5');
+    individualTitle.textContent = '개별 클립:';
+    individualTitle.style.marginTop = '12px';
+    resultsDiv.appendChild(individualTitle);
     
     files.forEach((file, index) => {
+        // combined 타입은 이미 표시했으므로 건너뜀
+        if (file.type === 'combined') return;
+        
         const item = document.createElement('div');
         item.className = 'batch-item';
         item.innerHTML = `
-            <span>클립 ${index + 1}: ${file.start_time}s - ${file.end_time}s</span>
+            <span>클립 ${file.clip_num}: ${file.start_time?.toFixed(1)}s - ${file.end_time?.toFixed(1)}s</span>
             <button class="download-btn" onclick="downloadBatchClip('${batchJobId}', ${file.clip_num})">
                 다운로드
             </button>
@@ -177,6 +204,11 @@ function displayBatchResults(files) {
 // 배치 클립 다운로드
 function downloadBatchClip(jobId, clipNum) {
     window.open(`${API_BASE_URL}/api/batch/download/${jobId}/${clipNum}`, '_blank');
+}
+
+// 통합 비디오 다운로드
+function downloadCombinedVideo(jobId) {
+    window.open(`${API_BASE_URL}/api/batch/download/${jobId}/combined`, '_blank');
 }
 
 // 배치 클립 초기화

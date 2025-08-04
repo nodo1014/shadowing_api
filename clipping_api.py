@@ -961,6 +961,62 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
             else:
                 print(f"Warning: Failed to create clip {clip_num}")
         
+        # 통합 비디오 생성
+        combined_video_path = None
+        if len(output_files) > 0:
+            logger.info(f"[Job {job_id}] Creating combined video from {len(output_files)} clips")
+            job_status[job_id]["progress"] = 95
+            job_status[job_id]["message"] = "통합 비디오 생성 중..."
+            
+            # 통합 비디오 파일명
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            combined_filename = f"{timestamp}_tp_{request.template_number}_combined.mp4"
+            combined_video_path = job_dir / combined_filename
+            
+            # FFmpeg concat 파일 생성
+            concat_file = job_dir / "concat_list.txt"
+            with open(concat_file, 'w') as f:
+                for output_file in output_files:
+                    # 파일 경로를 절대 경로로 변환
+                    file_path = Path(output_file["file"]).absolute()
+                    # 파일 존재 확인
+                    if not file_path.exists():
+                        logger.warning(f"File not found for concat: {file_path}")
+                    f.write(f"file '{file_path}'\n")
+            
+            logger.info(f"Concat list created: {concat_file}")
+            
+            # FFmpeg를 사용하여 비디오 연결
+            import subprocess
+            concat_cmd = [
+                'ffmpeg',
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', str(concat_file),
+                '-c', 'copy',  # 재인코딩 없이 빠르게 연결
+                '-y',
+                str(combined_video_path)
+            ]
+            
+            try:
+                logger.info(f"Running FFmpeg concat command...")
+                result = subprocess.run(concat_cmd, capture_output=True, text=True, check=True)
+                logger.info(f"Combined video created successfully: {combined_video_path}")
+                
+                # 통합 비디오 정보 추가
+                output_files.append({
+                    "type": "combined",
+                    "file": str(combined_video_path),
+                    "total_clips": len(output_files),
+                    "description": "통합 shadowing 비디오"
+                })
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Failed to create combined video: {e.stderr}")
+                logger.error(f"FFmpeg stdout: {e.stdout}")
+                # 통합 비디오 생성 실패해도 개별 클립은 성공으로 처리
+        else:
+            logger.warning(f"[Job {job_id}] No output files to combine")
+        
         # 메타데이터 저장
         metadata = {
             "job_id": job_id,
@@ -968,6 +1024,7 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
             "template_number": request.template_number,
             "total_clips": len(request.clips),
             "output_files": output_files,
+            "combined_video": str(combined_video_path) if combined_video_path else None,
             "created_at": datetime.now().isoformat()
         }
         
@@ -977,8 +1034,9 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
         # 작업 완료
         job_status[job_id]["status"] = "completed"
         job_status[job_id]["progress"] = 100
-        job_status[job_id]["message"] = f"배치 클리핑 완료! ({len(output_files)}/{len(request.clips)}개 성공)"
+        job_status[job_id]["message"] = f"배치 클리핑 완료! ({len(output_files)-1}/{len(request.clips)}개 + 통합 비디오)"
         job_status[job_id]["output_files"] = output_files
+        job_status[job_id]["combined_video"] = str(combined_video_path) if combined_video_path else None
         
     except Exception as e:
         job_status[job_id]["status"] = "failed"
@@ -999,9 +1057,9 @@ async def get_batch_status(job_id: str):
 
 @app.get("/api/batch/download/{job_id}/{clip_num}",
          tags=["Download"],
-         summary="배치 클립 개별 다운로드")
-async def download_batch_clip(job_id: str, clip_num: int):
-    """배치 작업의 특정 클립을 다운로드합니다."""
+         summary="배치 클립 다운로드")
+async def download_batch_clip(job_id: str, clip_num: str):
+    """배치 작업의 클립을 다운로드합니다. clip_num이 'combined'인 경우 통합 비디오를 다운로드합니다."""
     if job_id not in job_status:
         raise HTTPException(status_code=404, detail="Job not found")
     
@@ -1018,44 +1076,105 @@ async def download_batch_clip(job_id: str, clip_num: int):
     if not job_path:
         raise HTTPException(status_code=404, detail="Job directory not found")
     
-    clip_path = job_path / f"clip_{clip_num:03d}" / f"clip_{clip_num:03d}.mp4"
-    if not clip_path.exists():
-        raise HTTPException(status_code=404, detail="Clip not found")
+    # 통합 비디오 다운로드
+    if clip_num == "combined":
+        # 통합 비디오 파일 찾기
+        combined_files = list(job_path.glob("*_combined.mp4"))
+        if not combined_files:
+            raise HTTPException(status_code=404, detail="Combined video not found")
+        
+        combined_path = combined_files[0]
+        return FileResponse(
+            combined_path,
+            media_type="video/mp4",
+            filename=f"batch_{job_id}_combined.mp4"
+        )
+    
+    # 개별 클립 다운로드
+    try:
+        clip_num_int = int(clip_num)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid clip number")
+    
+    # 클립 파일 찾기 (여러 가능한 경로 시도)
+    possible_paths = [
+        job_path / f"clip_{clip_num_int:03d}" / f"*_c{clip_num_int:03d}.mp4",  # 새 형식
+        job_path / f"clip_{clip_num_int:03d}" / f"clip_{clip_num_int:03d}.mp4",  # 이전 형식
+        job_path / f"clip_{clip_num_int:03d}" / "*.mp4"  # 모든 mp4 파일
+    ]
+    
+    clip_path = None
+    for pattern in possible_paths:
+        matches = list(job_path.glob(str(pattern).split('/')[-2] + '/' + str(pattern).split('/')[-1]))
+        if matches:
+            clip_path = matches[0]
+            break
+    
+    if not clip_path or not clip_path.exists():
+        raise HTTPException(status_code=404, detail=f"Clip {clip_num} not found")
     
     return FileResponse(
         clip_path,
         media_type="video/mp4",
-        filename=f"batch_{job_id}_clip_{clip_num:03d}.mp4"
+        filename=f"batch_{job_id}_clip_{clip_num_int:03d}.mp4"
     )
 
 
 @app.delete("/api/job/{job_id}",
             tags=["Management"],
             summary="작업 삭제")
-async def delete_job(job_id: str):
-    """작업과 관련 파일을 삭제합니다."""
-    if job_id not in job_status:
-        raise HTTPException(status_code=404, detail="Job not found")
+async def delete_job_api(job_id: str, force: bool = False):
+    """작업과 관련 파일을 삭제합니다. force=true인 경우 파일이 없어도 DB 레코드를 삭제합니다."""
     
-    # 파일 삭제
-    # 날짜별 디렉토리에서 job_id 찾기
+    # DB에서 작업 찾기
+    db_job = get_job_by_id(job_id)
+    if not db_job:
+        # 메모리에서도 확인
+        if job_id not in job_status:
+            raise HTTPException(status_code=404, detail="Job not found in database or memory")
+    
+    # 파일 삭제 시도
     job_dir = None
+    file_deleted = False
+    
+    # 날짜별 디렉토리에서 job_id 찾기
     for daily_dir in OUTPUT_DIR.iterdir():
         if daily_dir.is_dir() and (daily_dir / job_id).exists():
             job_dir = daily_dir / job_id
             break
     
-    if not job_dir:
-        raise HTTPException(status_code=404, detail="Job directory not found")
+    # 파일이 없는 경우 처리
+    if not job_dir or not job_dir.exists():
+        if not force:
+            # force가 아니면 에러
+            logger.warning(f"Job directory not found for {job_id}, but force={force}")
+            if not force:
+                raise HTTPException(status_code=404, detail="Job directory not found. Use force=true to delete DB record anyway.")
+    else:
+        # 파일이 있으면 삭제
+        try:
+            import shutil
+            shutil.rmtree(job_dir)
+            file_deleted = True
+            logger.info(f"Deleted job directory: {job_dir}")
+        except Exception as e:
+            logger.error(f"Failed to delete directory {job_dir}: {e}")
+            if not force:
+                raise HTTPException(status_code=500, detail=f"Failed to delete files: {str(e)}")
     
-    if job_dir.exists():
-        import shutil
-        shutil.rmtree(job_dir)
+    # 메모리에서 삭제
+    if job_id in job_status:
+        del job_status[job_id]
     
-    # 상태 삭제
-    del job_status[job_id]
+    # DB에서 삭제
+    if db_job:
+        delete_job(job_id)  # database.py의 delete_job 함수 호출
     
-    return {"message": "Job deleted successfully"}
+    return {
+        "message": "Job deleted successfully",
+        "file_deleted": file_deleted,
+        "db_deleted": True
+    }
 
 
 # 정리 작업 (만료된 작업 제거)
@@ -1187,6 +1306,55 @@ async def search_jobs_api(
         for job in jobs
     ]
 
+
+@app.post("/api/admin/cleanup",
+         tags=["Admin"],
+         summary="고아 레코드 정리")
+async def cleanup_orphaned_records():
+    """파일이 없는 DB 레코드를 정리합니다."""
+    try:
+        jobs = get_recent_jobs(limit=1000)  # 최근 1000개 확인
+        deleted_count = 0
+        checked_count = 0
+        
+        for job in jobs:
+            checked_count += 1
+            job_id = job.id
+            
+            # 파일 존재 확인
+            file_exists = False
+            
+            # 날짜별 디렉토리에서 확인
+            for daily_dir in OUTPUT_DIR.iterdir():
+                if daily_dir.is_dir() and (daily_dir / job_id).exists():
+                    file_exists = True
+                    break
+            
+            # output_file 경로로도 확인
+            if not file_exists and job.output_file:
+                file_exists = Path(job.output_file).exists()
+            
+            # 파일이 없으면 DB에서 삭제
+            if not file_exists:
+                logger.info(f"Deleting orphaned record: {job_id}")
+                delete_job(job_id)
+                deleted_count += 1
+                
+                # 메모리에서도 삭제
+                if job_id in job_status:
+                    del job_status[job_id]
+        
+        logger.info(f"Cleanup completed: checked={checked_count}, deleted={deleted_count}")
+        
+        return {
+            "checked_count": checked_count,
+            "deleted_count": deleted_count,
+            "message": f"Cleaned up {deleted_count} orphaned records out of {checked_count} checked"
+        }
+        
+    except Exception as e:
+        logger.error(f"Cleanup failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/admin/jobs/{job_id}",
          tags=["Admin"],
