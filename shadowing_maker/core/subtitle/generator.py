@@ -123,6 +123,9 @@ class SubtitleGenerator:
             if with_korean:
                 subtitle['korean'] = subtitle.get('text_kor', '')
                 subtitle['kor'] = subtitle.get('text_kor', '')
+                # Add note to display in top-left corner for blank_korean
+                if subtitle.get('note'):
+                    subtitle['note'] = subtitle.get('note', '')
             else:
                 subtitle['korean'] = ''
                 subtitle['kor'] = ''

@@ -41,7 +41,7 @@ class ASSGenerator:
                 "font_name": "Noto Sans CJK KR",
                 "font_size": 24,  # As requested
                 "bold": True,  # Bold for maximum thickness
-                "primary_color": "&H00FFFF&",  # Yellow (BGR: 00FFFF)
+                "primary_color": "&HFFFFFF&",  # White (BGR: FFFFFF)
                 "secondary_color": "&H000000FF",
                 "outline_color": "&H000000&",  # Black outline
                 "back_color": "&H00000000",
