@@ -1,0 +1,4 @@
+number,type,category,english,korean,note
+001,sentence,기초문장,Hello.,안녕하세요.,인사할 때
+002,sentence,일반문장,Where is the nearest subway station?,가장 가까운 지하철역이 어디인가요?,길을 물을 때
+003,sentence,긴문장,Could you please tell me how to get to the airport from here?,여기서 공항까지 어떻게 가는지 알려주실 수 있나요?,방향을 물을 때

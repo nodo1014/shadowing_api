@@ -1,0 +1,11 @@
+number,type,category,english,korean,keywords,note
+001,sentence,일상회화,I am a student,나는 학생입니다,am student,student: 학생
+002,sentence,일상회화,She likes coffee,그녀는 커피를 좋아해요,likes,like: 좋아하다
+003,sentence,일상회화,We go to school,우리는 학교에 가요,go,go to: ~에 가다
+004,sentence,일상회화,They are playing,그들은 놀고 있어요,playing,play: 놀다
+005,sentence,일상회화,He is reading a book,그는 책을 읽고 있어요,reading book,read: 읽다
+006,sentence,쇼핑,How much is it?,얼마예요?,how much,how much: 얼마
+007,sentence,쇼핑,I want to buy this,이것을 사고 싶어요,want buy,want: 원하다
+008,sentence,음식,I am hungry,배가 고파요,hungry,hungry: 배고픈
+009,sentence,음식,It is delicious,맛있어요,delicious,delicious: 맛있는
+010,sentence,날씨,It is sunny today,오늘은 맑아요,sunny today,sunny: 맑은

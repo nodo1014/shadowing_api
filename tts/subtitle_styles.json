@@ -1,0 +1,166 @@
+{
+  "word": {
+    "category": {
+      "fontname": "Noto Sans CJK KR",
+      "fontsize": 24,
+      "color": "&H00000000",
+      "background": "&H0000FFFF",
+      "alignment": 7,
+      "margin_v": 0,
+      "bold": -1
+    },
+    "number": {
+      "fontname": "DejaVu Sans",
+      "fontsize": 40,
+      "color": "&H00FFFF00",
+      "alignment": 8,
+      "margin_v": 20,
+      "bold": -1
+    },
+    "english": {
+      "fontname": "Noto Sans",
+      "fontsize": 90,
+      "color": "&H00FFFFFF",
+      "alignment": 2,
+      "margin_v": 90,
+      "bold": -1
+    },
+    "word_meaning": {
+      "fontname": "Noto Sans CJK KR",
+      "fontsize": 50,
+      "color": "&H00FFFFFF",
+      "alignment": 2,
+      "margin_v": 54,
+      "bold": -1
+    },
+    "pronunciation": {
+      "fontname": "Noto Sans CJK KR",
+      "fontsize": 28,
+      "color": "&H00FFFF00",
+      "alignment": 2,
+      "margin_v": 20,
+      "bold": -1
+    }
+  },
+  "sentence_basic": {
+    "category": {
+      "fontname": "Noto Sans CJK KR",
+      "fontsize": 24,
+      "color": "&H00000000",
+      "background": "&H0000FFFF",
+      "alignment": 7,
+      "margin_v": 0,
+      "bold": -1
+    },
+    "number": {
+      "fontname": "DejaVu Sans",
+      "fontsize": 40,
+      "color": "&H00FFFF00",
+      "alignment": 8,
+      "margin_v": 10,
+      "bold": -1
+    },
+    "english": {
+      "fontname": "Noto Sans",
+      "fontsize": 40,
+      "color": "&H00FFFFFF",
+      "alignment": 5,
+      "margin_v": 0,
+      "bold": -1
+    },
+    "word_meaning": {
+      "fontname": "Noto Sans CJK KR",
+      "fontsize": 32,
+      "color": "&H00FFFFFF",
+      "alignment": 2,
+      "margin_v": 40,
+      "bold": -1
+    },
+    "note": {
+      "fontname": "Noto Sans CJK KR",
+      "fontsize": 28,
+      "color": "&H00FFFF00",
+      "alignment": 2,
+      "margin_v": 20,
+      "bold": -1
+    }
+  },
+  "sentence_medium": {
+    "category": {
+      "fontname": "Noto Sans CJK KR",
+      "fontsize": 24,
+      "color": "&H00000000",
+      "background": "&H0000FFFF",
+      "alignment": 7,
+      "margin_v": 0,
+      "bold": -1
+    },
+    "number": {
+      "fontname": "DejaVu Sans",
+      "fontsize": 30,
+      "color": "&H00FFFF00",
+      "alignment": 8,
+      "margin_v": 30,
+      "bold": -1
+    },
+    "english": {
+      "fontname": "Noto Sans",
+      "fontsize": 36,
+      "color": "&H00FFFFFF",
+      "alignment": 5,
+      "margin_v": 0,
+      "bold": -1
+    },
+    "word_meaning": {
+      "fontname": "Noto Sans CJK KR",
+      "fontsize": 32,
+      "color": "&H00FFFFFF",
+      "alignment": 2,
+      "margin_v": 40,
+      "bold": -1
+    },
+    "note": {
+      "fontname": "Noto Sans CJK KR",
+      "fontsize": 24,
+      "color": "&H00FFFF00",
+      "alignment": 2,
+      "margin_v": 20,
+      "bold": -1
+    }
+  },
+  "sentence_pro": {
+    "english": {
+      "fontname": "DejaVu Sans",
+      "fontsize": 80,
+      "color": "&H00FFFFFF",
+      "alignment": 5,
+      "margin_v": 100,
+      "bold": -1
+    },
+    "korean": {
+      "fontname": "Noto Sans CJK KR",
+      "fontsize": 52,
+      "color": "&H00FFFF00",
+      "alignment": 2,
+      "margin_v": 50,
+      "bold": -1
+    },
+    "note": {
+      "fontname": "DejaVu Sans",
+      "fontsize": 40,
+      "color": "&H0000FF00",
+      "alignment": 8,
+      "margin_v": 50,
+      "bold": 0
+    },
+    "category": {
+      "fontname": "Noto Sans CJK KR",
+      "fontsize": 24,
+      "color": "&H00000000",
+      "background": "&H0000FFFF",
+      "alignment": 7,
+      "margin_v": 30,
+      "bold": -1
+    }
+  }
+}
