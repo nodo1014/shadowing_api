@@ -1,0 +1,23 @@
+[Script Info]
+Title: Shadowing Subtitles
+ScriptType: v4.00+
+Collisions: Normal
+PlayDepth: 0
+Timer: 100.0000
+Video Aspect Ratio: 0
+Video Zoom: 0
+Video Position: 0
+WrapStyle: 0
+ScaledBorderAndShadow: no
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: English,Open Sans,36,&HFFFFFF&,&H000000FF,&H000000&,&H00000000,1,0,0,0,85,100,0,0,1,1,0,2,0,0,60,1
+Style: Korean,Noto Sans KR ExtraBold,28,&H00FFFF&,&H000000FF,&H000000&,&H00000000,0,0,0,0,85,100,0,0,1,1,0,2,0,0,20,1
+Style: Note,Noto Sans KR ExtraBold,24,&HFFFFFF&,&H000000FF,&H000000&,&H00000000,0,0,0,0,85,100,0,0,1,1,0,7,30,30,30,1
+Style: NoSubtitleNotice,Noto Sans KR ExtraBold,40,&H00FFFF&,&H000000FF,&H000000&,&H00000000,0,0,0,0,85,100,0,0,1,1,0,7,20,20,20,1
+Style: ShortsTitle,Noto Sans KR Black,56,&H00D7FF&,&H000000FF,&H000000&,&H00000000,0,0,0,0,100,100,0,0,1,3,4,8,20,20,80,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 1,0:00:00.00,0:00:10.00,ShortsTitle,,0,0,0,,{\fad(500,300)\t(0,500,\fscx120\fscy120)\t(500,800,\fscx100\fscy100)}📺 스크린 잉글리쉬

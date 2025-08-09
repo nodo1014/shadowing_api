@@ -45,6 +45,34 @@ class VideoEncoder:
                 # 추가 품질 옵션 - 자막에 최적화
                 "x264opts": "keyint=240:min-keyint=24:scenecut=40:deblock=-1,-1",
                 "tune": "animation"  # 자막/텍스트에 더 적합
+            },
+            "shorts_no_subtitle": {
+                "video_codec": "libx264",
+                "preset": "medium",
+                "crf": "18",
+                "profile": "high",
+                "level": "4.1",
+                "pix_fmt": "yuv420p",
+                "width": "1080",
+                "height": "1920",
+                "audio_codec": "aac",
+                "audio_bitrate": "192k",
+                "x264opts": "keyint=240:min-keyint=24:scenecut=40",
+                "tune": "film"
+            },
+            "shorts_with_subtitle": {
+                "video_codec": "libx264",
+                "preset": "slow",
+                "crf": "18",
+                "profile": "high",
+                "level": "4.1",
+                "pix_fmt": "yuv420p",
+                "width": "1080",
+                "height": "1920",
+                "audio_codec": "aac",
+                "audio_bitrate": "192k",
+                "x264opts": "keyint=240:min-keyint=24:scenecut=40:deblock=-1,-1",
+                "tune": "animation"
             }
         }
         
@@ -340,11 +368,14 @@ class VideoEncoder:
     
     def _encode_clip(self, input_path: str, output_path: str, 
                     start_time: Optional[float], duration: Optional[float], 
-                    subtitle_file: Optional[str]) -> bool:
+                    subtitle_file: Optional[str], is_shorts: bool = False) -> bool:
         """Encode a single clip with or without subtitles"""
         
         # Choose encoding settings
-        settings = self.encoding_settings["with_subtitle" if subtitle_file else "no_subtitle"]
+        if is_shorts:
+            settings = self.encoding_settings["shorts_with_subtitle" if subtitle_file else "shorts_no_subtitle"]
+        else:
+            settings = self.encoding_settings["with_subtitle" if subtitle_file else "no_subtitle"]
         
         # Build FFmpeg command
         cmd = ['ffmpeg', '-y']  # -y for overwrite
@@ -360,7 +391,44 @@ class VideoEncoder:
             cmd.extend(['-t', str(duration)])
         
         # Video filter for subtitles and scaling
-        video_filter = f"scale={settings['width']}:{settings['height']}"
+        # Check if this is shorts format
+        is_shorts = settings.get('width') == '1080' and settings.get('height') == '1920'
+        
+        if is_shorts:
+            # Shorts video processing options
+            shorts_mode = getattr(self, 'shorts_video_mode', 'crop')  # fit, crop, zoom, blur_background
+            
+            if shorts_mode == 'center_crop':
+                # 중앙 크롭: 높이를 1920으로 맞추고 중앙 1080px만 크롭
+                video_filter = "scale=-1:1920,crop=1080:1920,setsar=1"
+            elif shorts_mode == 'fit':
+                # 전체 화면 축소: 16:9 비율 유지하며 중앙 배치
+                # 1920x1080 → 1080x608 → 세로 중앙 배치
+                video_filter = "scale=1080:-1,pad=1080:1920:0:(1920-ih)/2:black,setsar=1"
+            elif shorts_mode == 'crop_left':
+                # Left crop: 왼쪽 인물 중심 크롭
+                video_filter = "scale=-1:1920,crop=1080:1920:0:0"
+            elif shorts_mode == 'crop_right':
+                # Right crop: 오른쪽 인물 중심 크롭
+                video_filter = "scale=-1:1920,crop=1080:1920:ow-1080:0"
+            elif shorts_mode == 'zoom':
+                # Zoom and crop: 약간 확대 후 크롭 (인물 클로즈업용)
+                # 1.2배 확대 후 크롭
+                video_filter = "scale=1920*1.2:-1,crop=1080:1920:(ow-1080)/2:0"
+            elif shorts_mode == 'blur_background':
+                # 블러 배경: 원본을 흐리게 확대한 배경 + 중앙에 원본
+                video_filter = (
+                    "split[a][b];"
+                    "[a]scale=1080:1920,boxblur=20:20[bg];"
+                    "[b]scale=1080:-1[fg];"
+                    "[bg][fg]overlay=(W-w)/2:(H-h)/2"
+                )
+            else:  # 'fit' (default)
+                # Fit: 전체 영상이 보이도록 축소, 위아래 검은 여백
+                video_filter = "scale=1080:-1,pad=1080:1920:0:(1920-ih)/2:black"
+        else:
+            video_filter = f"scale={settings['width']}:{settings['height']}"
+        
         if subtitle_file:
             # Use absolute path and escape special characters for FFmpeg filter
             abs_path = os.path.abspath(subtitle_file)
@@ -370,7 +438,8 @@ class VideoEncoder:
             escaped_path = abs_path.replace('\\', '/').replace(':', '\\:')
             escaped_path = escaped_path.replace('[', '\\[').replace(']', '\\]')
             escaped_path = escaped_path.replace(',', '\\,').replace("'", "\\'")
-            video_filter = f"scale={settings['width']}:{settings['height']},ass={escaped_path}"
+            # Append ass filter to existing video_filter instead of replacing it
+            video_filter = f"{video_filter},ass={escaped_path}"
         
         cmd.extend(['-vf', video_filter])
         
@@ -662,132 +731,8 @@ class VideoEncoder:
             if 'concat_file' in locals() and os.path.exists(concat_file.name):
                 os.unlink(concat_file.name)
     
-    def create_shadowing_video_efficient(self, media_path: str, ass_path: str, output_path: str, 
-                                        start_time: float = None, end_time: float = None,
-                                        padding_before: float = 0.5, padding_after: float = 0.5) -> bool:
-        """Create shadowing video efficiently using FFmpeg concat filter"""
-        
-        # Validate input files
-        if not os.path.exists(media_path):
-            raise FileNotFoundError(f"Media file not found: {media_path}")
-        if not os.path.exists(ass_path):
-            raise FileNotFoundError(f"ASS file not found: {ass_path}")
-        
-        # Calculate padded times if specified
-        if start_time is not None and end_time is not None:
-            padded_start = max(0, start_time - padding_before)
-            padded_end = end_time + padding_after
-            duration = padded_end - padded_start
-            
-            # Create time-adjusted ASS file for this clip
-            temp_ass_file = tempfile.NamedTemporaryFile(suffix='.ass', delete=False)
-            temp_ass_file.close()
-            
-            try:
-                # Load original translated subtitles to find matching subtitle
-                translated_json = ass_path.replace('.ass', '_translated.json')
-                if os.path.exists(translated_json):
-                    with open(translated_json, 'r', encoding='utf-8') as f:
-                        subtitles_data = json.load(f)
-                    
-                    # Find the subtitle that matches this time range
-                    matching_subtitle = None
-                    for sub in subtitles_data:
-                        if (sub['start_time'] <= padded_end and sub['end_time'] >= padded_start):
-                            matching_subtitle = sub
-                            break
-                    
-                    if matching_subtitle:
-                        # Generate ASS file with only this subtitle
-                        from ass_generator import ASSGenerator
-                        ass_generator = ASSGenerator()
-                        clip_subtitle = matching_subtitle.copy()
-                        clip_subtitle['start_time'] = 0.0
-                        clip_subtitle['end_time'] = duration
-                        
-                        ass_generator.generate_ass([clip_subtitle], temp_ass_file.name)
-                        ass_path = temp_ass_file.name
-                    else:
-                        # Create empty ASS file
-                        from ass_generator import ASSGenerator
-                        ass_generator = ASSGenerator()
-                        ass_generator.generate_ass([], temp_ass_file.name)
-                        ass_path = temp_ass_file.name
-                        
-            except Exception as e:
-                print(f"Warning: Could not create time-adjusted ASS file: {e}")
-                pass
-        else:
-            padded_start = None
-            duration = None
-        
-        try:
-            # Build FFmpeg command with concat filter
-            cmd = ['ffmpeg', '-y']
-            
-            # Input file with seeking if specified
-            if padded_start is not None:
-                cmd.extend(['-ss', str(padded_start)])
-            
-            cmd.extend(['-i', media_path])
-            
-            # Duration if specified
-            if duration is not None:
-                cmd.extend(['-t', str(duration)])
-            
-            # Settings
-            settings = self.encoding_settings["with_subtitle"]
-            
-            # Create complex filter for shadowing pattern
-            # 1x no subtitle + 3x with subtitle + gaps
-            # Escape ASS path for filter_complex
-            ass_escaped = os.path.abspath(ass_path).replace(':', '\\:').replace('[', '\\[').replace(']', '\\]').replace('(', '\\(').replace(')', '\\)')
-            
-            filter_complex = f"""
-            [0:v]scale={settings['width']}:{settings['height']}[v_scaled];
-            [v_scaled]ass={ass_escaped}[v_sub];
-            [v_scaled][v_sub][v_sub][v_sub]concat=n=4:v=1:a=0[v_out];
-            [0:a][0:a][0:a][0:a]concat=n=4:v=0:a=1[a_out];
-            color=black:size={settings['width']}x{settings['height']}:duration=0.5[gap];
-            [v_out][gap][gap][gap]concat=n=4:v=1:a=0[v_final];
-            [a_out]apad=pad_dur=1.5[a_final]
-            """
-            
-            cmd.extend(['-filter_complex', filter_complex.strip()])
-            cmd.extend(['-map', '[v_final]', '-map', '[a_final]'])
-            
-            # Encoding settings
-            cmd.extend([
-                '-c:v', settings['video_codec'],
-                '-preset', settings['preset'],
-                '-crf', settings['crf'],
-                '-profile:v', settings['profile'],
-                '-level', settings['level'],
-                '-pix_fmt', settings['pix_fmt'],
-                '-c:a', settings['audio_codec'],
-                '-b:a', settings['audio_bitrate'],
-                '-movflags', '+faststart',
-                output_path
-            ])
-            
-            # Execute command
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            
-            if result.returncode != 0:
-                print(f"FFmpeg error: {result.stderr}")
-                return False
-            
-            print(f"Successfully created shadowing video: {output_path}")
-            return True
-            
-        except Exception as e:
-            print(f"Error creating shadowing video: {str(e)}")
-            return False
-            
-        finally:
-            # Clean up temporary ASS file if created
-            if 'temp_ass_file' in locals() and os.path.exists(temp_ass_file.name):
-                os.unlink(temp_ass_file.name)
+    # DEPRECATED: create_shadowing_video_efficient method removed
+    # Use create_shadowing_video instead
 
     def process_full_video(self, media_path: str, subtitles: List[Dict], 
                           ass_path: str, output_dir: str, 

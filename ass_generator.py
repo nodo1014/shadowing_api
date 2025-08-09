@@ -66,6 +66,67 @@ class ASSGenerator:
                 "margin_l": 20,
                 "margin_r": 20,
                 "margin_v": 20
+            },
+            "shorts_title": {
+                "font_name": "Noto Sans KR Black",
+                "font_size": 56,  # 크고 임팩트 있게
+                "bold": False,
+                "primary_color": "&H00D7FF&",  # 밝은 주황색 (BGR: FFD700 골드에 가까운 주황)
+                "secondary_color": "&H000000FF",
+                "outline_color": "&H000000&",  # Black outline
+                "back_color": "&H00000000",
+                "outline": 3,  # 두꺼운 아웃라인으로 가독성 확보
+                "shadow": 4,  # 그림자로 입체감
+                "alignment": 8,  # Top center
+                "margin_l": 20,
+                "margin_r": 20,
+                "margin_v": 80  # 상단에서 80px 떨어진 위치
+            },
+            # Shorts 전용 자막 스타일
+            "shorts_english": {
+                "font_name": "Open Sans",
+                "font_size": 28,  # 36 → 28로 축소
+                "bold": True,
+                "primary_color": "&HFFFFFF&",  # White
+                "secondary_color": "&H000000FF",
+                "outline_color": "&H000000&",
+                "back_color": "&H00000000",
+                "outline": 1,
+                "shadow": 0,
+                "alignment": 2,  # Bottom center
+                "margin_l": 0,
+                "margin_r": 0,
+                "margin_v": 40  # 하단 여백 줄임
+            },
+            "shorts_korean": {
+                "font_name": "Noto Sans KR ExtraBold",
+                "font_size": 22,  # 28 → 22로 축소
+                "bold": False,
+                "primary_color": "&H00FFFF&",  # Yellow
+                "secondary_color": "&H000000FF",
+                "outline_color": "&H000000&",
+                "back_color": "&H00000000",
+                "outline": 1,
+                "shadow": 0,
+                "alignment": 2,  # Bottom center
+                "margin_l": 0,
+                "margin_r": 0,
+                "margin_v": 15  # 하단 여백 줄임
+            },
+            "shorts_note": {
+                "font_name": "Noto Sans KR ExtraBold",
+                "font_size": 20,  # 24 → 20으로 축소
+                "bold": False,
+                "primary_color": "&HFFFFFF&",  # White
+                "secondary_color": "&H000000FF",
+                "outline_color": "&H000000&",
+                "back_color": "&H00000000",
+                "outline": 1,
+                "shadow": 0,
+                "alignment": 7,  # Top left
+                "margin_l": 20,
+                "margin_r": 20,
+                "margin_v": 20
             }
         }
         
@@ -73,12 +134,18 @@ class ASSGenerator:
         self.width = 0
         self.height = 0
         
-    def generate_ass(self, subtitles: List[Dict], output_path: str, video_width: int = None, video_height: int = None, time_offset: float = 0.0, clip_duration: float = None):
+    def generate_ass(self, subtitles: List[Dict], output_path: str, video_width: int = None, video_height: int = None, time_offset: float = 0.0, clip_duration: float = None, is_shorts: bool = False):
         """Generate ASS subtitle file from subtitle data"""
         # Keep resolution at 0 for better scaling regardless of video dimensions
         # This allows the subtitle renderer to scale fonts appropriately
         # time_offset: subtract this value from all subtitle times (for clipped videos)
         # clip_duration: if specified, show subtitles for the entire clip duration
+        # is_shorts: if True, use shorts-specific styles
+        
+        # Auto-detect shorts from output path
+        if not is_shorts and 'shorts' in output_path.lower():
+            is_shorts = True
+            print(f"[ASS DEBUG] Auto-detected shorts from path: {output_path}")
         
         # Apply time offset to subtitles
         adjusted_subtitles = []
@@ -109,10 +176,10 @@ class ASSGenerator:
             f.write(self._generate_header())
             
             # Write styles
-            f.write(self._generate_styles())
+            f.write(self._generate_styles(is_shorts=is_shorts))
             
             # Write events
-            f.write(self._generate_events(adjusted_subtitles))
+            f.write(self._generate_events(adjusted_subtitles, is_shorts=is_shorts))
             
     def _generate_header(self) -> str:
         """Generate ASS file header without resolution settings for better scaling"""
@@ -131,40 +198,48 @@ ScaledBorderAndShadow: no
 """
         return header
     
-    def _generate_styles(self) -> str:
+    def _generate_styles(self, is_shorts: bool = False) -> str:
         """Generate styles section"""
-        print(f"[ASS DEBUG] Font settings - English: {self.styles['english']['font_name']}, Bold: {self.styles['english']['bold']}")
-        print(f"[ASS DEBUG] Font settings - Korean: {self.styles['korean']['font_name']}, Bold: {self.styles['korean']['bold']}")
+        # Select appropriate styles based on is_shorts
+        if is_shorts:
+            english_style = self.styles["shorts_english"]
+            korean_style = self.styles["shorts_korean"]
+            note_style = self.styles["shorts_note"]
+        else:
+            english_style = self.styles["english"]
+            korean_style = self.styles["korean"]
+            note_style = self.styles["note"]
+            
+        print(f"[ASS DEBUG] Using {'shorts' if is_shorts else 'regular'} styles")
+        print(f"[ASS DEBUG] Font settings - English: {english_style['font_name']}, Bold: {english_style['bold']}")
+        print(f"[ASS DEBUG] Font settings - Korean: {korean_style['font_name']}, Bold: {korean_style['bold']}")
         styles = "[V4+ Styles]\n"
         styles += "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, "
         styles += "Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, "
         styles += "Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
         
         # English style
-        eng = self.styles["english"]
         styles += "Style: English,{},{},{},{},{},{},{},0,0,0,85,100,0,0,1,{},{},{},{},{},{},1\n".format(
-            eng["font_name"], eng["font_size"], eng["primary_color"], eng["secondary_color"],
-            eng["outline_color"], eng["back_color"], 1 if eng["bold"] else 0,
-            eng["outline"], eng["shadow"], eng["alignment"],
-            eng["margin_l"], eng["margin_r"], eng["margin_v"]
+            english_style["font_name"], english_style["font_size"], english_style["primary_color"], english_style["secondary_color"],
+            english_style["outline_color"], english_style["back_color"], 1 if english_style["bold"] else 0,
+            english_style["outline"], english_style["shadow"], english_style["alignment"],
+            english_style["margin_l"], english_style["margin_r"], english_style["margin_v"]
         )
         
         # Korean style
-        kor = self.styles["korean"]
         styles += "Style: Korean,{},{},{},{},{},{},{},0,0,0,85,100,0,0,1,{},{},{},{},{},{},1\n".format(
-            kor["font_name"], kor["font_size"], kor["primary_color"], kor["secondary_color"],
-            kor["outline_color"], kor["back_color"], 1 if kor["bold"] else 0,
-            kor["outline"], kor["shadow"], kor["alignment"],
-            kor["margin_l"], kor["margin_r"], kor["margin_v"]
+            korean_style["font_name"], korean_style["font_size"], korean_style["primary_color"], korean_style["secondary_color"],
+            korean_style["outline_color"], korean_style["back_color"], 1 if korean_style["bold"] else 0,
+            korean_style["outline"], korean_style["shadow"], korean_style["alignment"],
+            korean_style["margin_l"], korean_style["margin_r"], korean_style["margin_v"]
         )
         
         # Note style
-        note = self.styles["note"]
         styles += "Style: Note,{},{},{},{},{},{},{},0,0,0,85,100,0,0,1,{},{},{},{},{},{},1\n".format(
-            note["font_name"], note["font_size"], note["primary_color"], note["secondary_color"],
-            note["outline_color"], note["back_color"], 1 if note["bold"] else 0,
-            note["outline"], note["shadow"], note["alignment"],
-            note["margin_l"], note["margin_r"], note["margin_v"]
+            note_style["font_name"], note_style["font_size"], note_style["primary_color"], note_style["secondary_color"],
+            note_style["outline_color"], note_style["back_color"], 1 if note_style["bold"] else 0,
+            note_style["outline"], note_style["shadow"], note_style["alignment"],
+            note_style["margin_l"], note_style["margin_r"], note_style["margin_v"]
         )
         
         # No subtitle notice style
@@ -176,10 +251,19 @@ ScaledBorderAndShadow: no
             no_sub["margin_l"], no_sub["margin_r"], no_sub["margin_v"]
         )
         
+        # Shorts title style
+        shorts = self.styles["shorts_title"]
+        styles += "Style: ShortsTitle,{},{},{},{},{},{},{},0,0,0,100,100,0,0,1,{},{},{},{},{},{},1\n".format(
+            shorts["font_name"], shorts["font_size"], shorts["primary_color"], shorts["secondary_color"],
+            shorts["outline_color"], shorts["back_color"], 1 if shorts["bold"] else 0,
+            shorts["outline"], shorts["shadow"], shorts["alignment"],
+            shorts["margin_l"], shorts["margin_r"], shorts["margin_v"]
+        )
+        
         styles += "\n"
         return styles
     
-    def _generate_events(self, subtitles: List[Dict]) -> str:
+    def _generate_events(self, subtitles: List[Dict], is_shorts: bool = False) -> str:
         """Generate events section"""
         events = "[Events]\n"
         events += "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
@@ -292,6 +376,33 @@ ScaledBorderAndShadow: no
             
             events += "Dialogue: 0,{},{},NoSubtitleNotice,,0,0,0,,{}\n".format(
                 start_time, end_time, animated_text
+            )
+            
+            f.write(events)
+    
+    def generate_shorts_title(self, output_path: str, title_text: str, duration: float = 5.0):
+        """Generate ASS file with title for shorts videos"""
+        with open(output_path, 'w', encoding='utf-8') as f:
+            # Write header
+            f.write(self._generate_header())
+            
+            # Write styles
+            f.write(self._generate_styles())
+            
+            # Write events
+            events = "[Events]\n"
+            events += "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+            
+            start_time = self._format_time(0.0)
+            end_time = self._format_time(duration)
+            
+            # Title with fade and scale animation effect
+            # 시작: 120% 크기에서 100%로 줄어들며 페이드인
+            # 종료: 페이드아웃
+            animated_title = "{\\fad(500,300)\\t(0,500,\\fscx120\\fscy120)\\t(500,800,\\fscx100\\fscy100)}" + title_text
+            
+            events += "Dialogue: 1,{},{},ShortsTitle,,0,0,0,,{}\n".format(
+                start_time, end_time, animated_title
             )
             
             f.write(events)

@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 from video_encoder import VideoEncoder
-from subtitle_generator import SubtitleGenerator
+from shadowing_maker.core.subtitle.generator import SubtitleGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -103,9 +103,17 @@ class TemplateVideoEncoder(VideoEncoder):
                                                            subtitle_file=subtitle_file):
                             raise Exception(f"Failed to create still frame {clip_config['subtitle_mode']} clip")
                     else:
+                        # Check if this is shorts template
+                        is_shorts = template_name.startswith("shorts_")
+                        
+                        # Set video mode for shorts
+                        if is_shorts and 'video_mode' in template:
+                            self.shorts_video_mode = template['video_mode']
+                        
                         if not self._encode_clip(media_path, temp_clips[-1],
                                                padded_start, duration,
-                                               subtitle_file=subtitle_file):
+                                               subtitle_file=subtitle_file,
+                                               is_shorts=is_shorts):
                             raise Exception(f"Failed to create {clip_config['subtitle_mode']} clip")
                     
                     # Save individual clip if requested
@@ -155,6 +163,9 @@ class TemplateVideoEncoder(VideoEncoder):
         template = self.templates.get(template_name)
         if not template:
             return subtitle_files
+            
+        # Check if this is a shorts template
+        is_shorts = template_name.startswith("shorts_")
             
         needed_types = set()
         for clip in template['clips']:
