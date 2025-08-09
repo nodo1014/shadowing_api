@@ -9,7 +9,7 @@ class ASSGenerator:
         self.styles = {
             "english": {
                 "font_name": "Open Sans",
-                "font_size": 36,  # As requested
+                "font_size": 32,  # 36 → 32로 조정
                 "bold": True,
                 "primary_color": "&HFFFFFF&",  # White
                 "secondary_color": "&H000000FF",
@@ -20,11 +20,11 @@ class ASSGenerator:
                 "alignment": 2,  # Bottom center
                 "margin_l": 0,
                 "margin_r": 0,
-                "margin_v": 60
+                "margin_v": 60  # 그대로 유지
             },
             "korean": {
                 "font_name": "Noto Sans KR ExtraBold",
-                "font_size": 28,  # As requested
+                "font_size": 32,  # 28 → 32로 조정
                 "bold": False,
                 "primary_color": "&H00FFFF&",  # Yellow (BGR: 00FFFF)
                 "secondary_color": "&H000000FF",
@@ -35,7 +35,7 @@ class ASSGenerator:
                 "alignment": 2,  # Bottom center
                 "margin_l": 0,
                 "margin_r": 0,
-                "margin_v": 20
+                "margin_v": 60  # 20 → 60으로 조정
             },
             "note": {
                 "font_name": "Noto Sans KR ExtraBold",
@@ -68,8 +68,8 @@ class ASSGenerator:
                 "margin_v": 20
             },
             "shorts_title": {
-                "font_name": "Noto Sans KR Black",
-                "font_size": 56,  # 크고 임팩트 있게
+                "font_name": "Tmon Monsori",  # 티몬 몬소리체 (설치 필요)
+                "font_size": 42,  # 적절한 크기로 조정
                 "bold": False,
                 "primary_color": "&H00D7FF&",  # 밝은 주황색 (BGR: FFD700 골드에 가까운 주황)
                 "secondary_color": "&H000000FF",
@@ -77,10 +77,10 @@ class ASSGenerator:
                 "back_color": "&H00000000",
                 "outline": 3,  # 두꺼운 아웃라인으로 가독성 확보
                 "shadow": 4,  # 그림자로 입체감
-                "alignment": 8,  # Top center
-                "margin_l": 20,
-                "margin_r": 20,
-                "margin_v": 80  # 상단에서 80px 떨어진 위치
+                "alignment": 8,  # Top center (화면 상단 중앙)
+                "margin_l": 5,  # 좌우 마진 최소화
+                "margin_r": 5,
+                "margin_v": 5  # 상단에서 5px만 떨어진 위치
             },
             # Shorts 전용 자막 스타일
             "shorts_english": {
@@ -253,7 +253,8 @@ ScaledBorderAndShadow: no
         
         # Shorts title style
         shorts = self.styles["shorts_title"]
-        styles += "Style: ShortsTitle,{},{},{},{},{},{},{},0,0,0,100,100,0,0,1,{},{},{},{},{},{},1\n".format(
+        # ScaleX, ScaleY를 줄여서 좌우/상하 압축, Spacing을 음수로 설정해서 자간 축소
+        styles += "Style: ShortsTitle,{},{},{},{},{},{},{},0,0,0,90,90,-3,0,1,{},{},{},{},{},{},1\n".format(
             shorts["font_name"], shorts["font_size"], shorts["primary_color"], shorts["secondary_color"],
             shorts["outline_color"], shorts["back_color"], 1 if shorts["bold"] else 0,
             shorts["outline"], shorts["shadow"], shorts["alignment"],
@@ -386,8 +387,20 @@ ScaledBorderAndShadow: no
             # Write header
             f.write(self._generate_header())
             
-            # Write styles
-            f.write(self._generate_styles())
+            # Write styles - 두 번째 줄용 스타일 추가
+            styles = self._generate_styles()
+            # 두 번째 줄용 스타일 추가 (흰색)
+            shorts2 = self.styles["shorts_title"].copy()
+            shorts2["primary_color"] = "&HFFFFFF&"  # White
+            styles = styles.rstrip() + "\n"
+            styles += "Style: ShortsTitle2,{},{},{},{},{},{},{},0,0,0,90,90,-3,0,1,{},{},{},{},{},{},1\n".format(
+                shorts2["font_name"], shorts2["font_size"], shorts2["primary_color"], shorts2["secondary_color"],
+                shorts2["outline_color"], shorts2["back_color"], 1 if shorts2["bold"] else 0,
+                shorts2["outline"], shorts2["shadow"], shorts2["alignment"],
+                shorts2["margin_l"], shorts2["margin_r"], shorts2["margin_v"]
+            )
+            styles += "\n"
+            f.write(styles)
             
             # Write events
             events = "[Events]\n"
@@ -396,14 +409,30 @@ ScaledBorderAndShadow: no
             start_time = self._format_time(0.0)
             end_time = self._format_time(duration)
             
-            # Title with fade and scale animation effect
-            # 시작: 120% 크기에서 100%로 줄어들며 페이드인
-            # 종료: 페이드아웃
-            animated_title = "{\\fad(500,300)\\t(0,500,\\fscx120\\fscy120)\\t(500,800,\\fscx100\\fscy100)}" + title_text
-            
-            events += "Dialogue: 1,{},{},ShortsTitle,,0,0,0,,{}\n".format(
-                start_time, end_time, animated_title
-            )
+            # Check if title has newline
+            if "\\N" in title_text:
+                lines = title_text.split("\\N")
+                if len(lines) >= 2:
+                    # 첫째줄: 노란색 (ShortsTitle)
+                    # 둘째줄: 흰색 (ShortsTitle2)
+                    animated_title = "{\\fad(500,300)\\t(0,500,\\fscx120\\fscy120)\\t(500,800,\\fscx100\\fscy100)}"
+                    animated_title += lines[0] + "\\N{\\r\\rShortsTitle2}" + lines[1]
+                    
+                    events += "Dialogue: 1,{},{},ShortsTitle,,0,0,0,,{}\n".format(
+                        start_time, end_time, animated_title
+                    )
+                else:
+                    # 한 줄만 있을 경우
+                    animated_title = "{\\fad(500,300)\\t(0,500,\\fscx120\\fscy120)\\t(500,800,\\fscx100\\fscy100)}" + title_text
+                    events += "Dialogue: 1,{},{},ShortsTitle,,0,0,0,,{}\n".format(
+                        start_time, end_time, animated_title
+                    )
+            else:
+                # 한 줄만 있을 경우
+                animated_title = "{\\fad(500,300)\\t(0,500,\\fscx120\\fscy120)\\t(500,800,\\fscx100\\fscy100)}" + title_text
+                events += "Dialogue: 1,{},{},ShortsTitle,,0,0,0,,{}\n".format(
+                    start_time, end_time, animated_title
+                )
             
             f.write(events)
 

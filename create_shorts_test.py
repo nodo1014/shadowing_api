@@ -105,7 +105,7 @@ print("\n=== Creating Title Test ===")
 # Create title overlay for testing
 title_generator = ASSGenerator()
 title_path = str(output_dir / "shorts_title.ass")
-title_generator.generate_shorts_title(title_path, "📺 스크린 잉글리쉬", duration=10.0)
+title_generator.generate_shorts_title(title_path, "📺 스크린\\N잉글리쉬", duration=10.0)
 print(f"✓ Title ASS created: {title_path}")
 
 # Create a combined version with title

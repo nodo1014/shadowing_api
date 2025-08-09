@@ -125,6 +125,14 @@ class TemplateVideoEncoder(VideoEncoder):
             # Get gap duration from template
             gap_duration = template.get('gap_duration', 1.5)
             
+            # Check if this is a shorts template
+            is_shorts = 'shorts' in template_name
+            video_mode = template.get('video_mode', 'normal')
+            
+            # Add title if shorts template
+            if is_shorts and 'title' in template:
+                subtitle_data['title'] = template['title']
+            
             # Prepare subtitle files if not provided
             if not subtitle_files:
                 subtitle_files = self._prepare_subtitle_files(
@@ -180,10 +188,22 @@ class TemplateVideoEncoder(VideoEncoder):
                             temp_with_sub = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
                             temp_with_sub.close()
                             
-                            success = add_subtitles(
-                                temp_raw, temp_with_sub.name,
-                                subtitle_file
-                            )
+                            # Use shorts-specific encoding if applicable
+                            if is_shorts:
+                                # Import video encoder for shorts
+                                import sys
+                                sys.path.append(str(Path(__file__).parent.parent.parent.parent))
+                                from video_encoder import VideoEncoder
+                                encoder = VideoEncoder()
+                                success = encoder.encode_video_for_shorts(
+                                    temp_raw, temp_with_sub.name,
+                                    subtitle_file, video_mode
+                                )
+                            else:
+                                success = add_subtitles(
+                                    temp_raw, temp_with_sub.name,
+                                    subtitle_file
+                                )
                             
                             if success:
                                 Path(temp_raw).unlink(missing_ok=True)
@@ -261,6 +281,9 @@ class TemplateVideoEncoder(VideoEncoder):
             if clip['subtitle_type']:
                 needed_types.add(clip['subtitle_type'])
         
+        # Check if this is a shorts template
+        is_shorts = 'shorts' in template_name
+        
         # Generate subtitle files
         for subtitle_type in needed_types:
             temp_file = tempfile.NamedTemporaryFile(suffix=f'_{subtitle_type}.ass', delete=False)
@@ -269,12 +292,20 @@ class TemplateVideoEncoder(VideoEncoder):
             try:
                 if subtitle_type == 'full':
                     with_keywords = (template_name == "template_2")
-                    generator.generate_full_subtitle(
-                        subtitle_data, temp_file.name,
-                        with_keywords=with_keywords,
-                        clip_duration=clip_duration,
-                        gap_duration=gap_duration
-                    )
+                    if is_shorts:
+                        generator.generate_shorts_subtitle(
+                            subtitle_data, temp_file.name,
+                            subtitle_type='both',
+                            clip_duration=clip_duration,
+                            gap_duration=gap_duration
+                        )
+                    else:
+                        generator.generate_full_subtitle(
+                            subtitle_data, temp_file.name,
+                            with_keywords=with_keywords,
+                            clip_duration=clip_duration,
+                            gap_duration=gap_duration
+                        )
                 elif subtitle_type == 'blank':
                     generator.generate_blank_subtitle(
                         subtitle_data, temp_file.name,
@@ -290,11 +321,19 @@ class TemplateVideoEncoder(VideoEncoder):
                         gap_duration=gap_duration
                     )
                 elif subtitle_type == 'korean':
-                    generator.generate_korean_only_subtitle(
-                        subtitle_data, temp_file.name,
-                        clip_duration=clip_duration,
-                        gap_duration=gap_duration
-                    )
+                    if is_shorts:
+                        generator.generate_shorts_subtitle(
+                            subtitle_data, temp_file.name,
+                            subtitle_type='korean',
+                            clip_duration=clip_duration,
+                            gap_duration=gap_duration
+                        )
+                    else:
+                        generator.generate_korean_only_subtitle(
+                            subtitle_data, temp_file.name,
+                            clip_duration=clip_duration,
+                            gap_duration=gap_duration
+                        )
                 
                 subtitle_files[subtitle_type] = temp_file.name
                 

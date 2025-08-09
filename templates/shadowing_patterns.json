@@ -90,7 +90,7 @@
     "shorts_template_crop": {
       "name": "YouTube Shorts (크롭)",
       "description": "쇼츠용 - 중앙 크롭 버전",
-      "title": "📺 스크린 잉글리쉬",
+      "title": "📺 스크린\\N잉글리쉬",
       "video_mode": "center_crop",
       "clips": [
         {
@@ -117,8 +117,35 @@
     "shorts_template_fit": {
       "name": "YouTube Shorts (전체)",
       "description": "쇼츠용 - 16:9 전체 화면 축소 버전",
-      "title": "📺 스크린 잉글리쉬",
+      "title": "📺 스크린\\N잉글리쉬",
       "video_mode": "fit",
+      "clips": [
+        {
+          "subtitle_mode": "no_subtitle",
+          "folder_name": "1_nosub",
+          "count": 1,
+          "subtitle_type": null
+        },
+        {
+          "subtitle_mode": "korean_only",
+          "folder_name": "2_korean",
+          "count": 1,
+          "subtitle_type": "korean"
+        },
+        {
+          "subtitle_mode": "both_subtitle",
+          "folder_name": "3_both",
+          "count": 1,
+          "subtitle_type": "full"
+        }
+      ],
+      "gap_duration": 0.8
+    },
+    "shorts_template_blur": {
+      "name": "YouTube Shorts (블러)",
+      "description": "쇼츠용 - 블러 배경 버전",
+      "title": "📺 스크린\\N잉글리쉬",
+      "video_mode": "blur_background",
       "clips": [
         {
           "subtitle_mode": "no_subtitle",

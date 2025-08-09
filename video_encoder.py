@@ -402,9 +402,12 @@ class VideoEncoder:
                 # 중앙 크롭: 높이를 1920으로 맞추고 중앙 1080px만 크롭
                 video_filter = "scale=-1:1920,crop=1080:1920,setsar=1"
             elif shorts_mode == 'fit':
-                # 전체 화면 축소: 16:9 비율 유지하며 중앙 배치
-                # 1920x1080 → 1080x608 → 세로 중앙 배치
-                video_filter = "scale=1080:-1,pad=1080:1920:0:(1920-ih)/2:black,setsar=1"
+                # 전체 화면 축소: 원본 비율 유지하며 화면 높이의 50% (960픽셀)로 배치
+                # 위쪽 여백 20% (384픽셀), 아래쪽 여백 30% (576픽셀)
+                # 원본이 1920x804이므로 높이 960으로 맞추면 폭은 약 2291이 되어 1080보다 큼
+                # 따라서 폭을 1080으로 제한하고 높이를 그에 맞춰 조정
+                # pad에서 y좌표를 384로 설정하여 위쪽에서 20% 떨어진 곳에 배치
+                video_filter = "scale=-1:960,crop=1080:960:(iw-1080)/2:0,pad=1080:1920:0:384:black,setsar=1"
             elif shorts_mode == 'crop_left':
                 # Left crop: 왼쪽 인물 중심 크롭
                 video_filter = "scale=-1:1920,crop=1080:1920:0:0"
@@ -421,7 +424,7 @@ class VideoEncoder:
                     "split[a][b];"
                     "[a]scale=1080:1920,boxblur=20:20[bg];"
                     "[b]scale=1080:-1[fg];"
-                    "[bg][fg]overlay=(W-w)/2:(H-h)/2"
+                    "[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1"
                 )
             else:  # 'fit' (default)
                 # Fit: 전체 영상이 보이도록 축소, 위아래 검은 여백
@@ -439,7 +442,10 @@ class VideoEncoder:
             escaped_path = escaped_path.replace('[', '\\[').replace(']', '\\]')
             escaped_path = escaped_path.replace(',', '\\,').replace("'", "\\'")
             # Append ass filter to existing video_filter instead of replacing it
-            video_filter = f"{video_filter},ass={escaped_path}"
+            # Add fontsdir for custom fonts
+            font_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'font'))
+            escaped_font_dir = font_dir.replace('\\', '/').replace(':', '\\:')
+            video_filter = f"{video_filter},ass={escaped_path}:fontsdir={escaped_font_dir}"
         
         cmd.extend(['-vf', video_filter])
         

@@ -29,7 +29,7 @@ class ClipRequest(BaseModel):
     keywords: Optional[List[str]] = Field(default_factory=list, description="키워드 목록")
     clipping_type: int = Field(1, ge=1, le=2, description="클리핑 타입")
     individual_clips: bool = Field(False, description="개별 클립 저장 여부")
-    template_number: Optional[int] = Field(None, ge=1, le=3, description="템플릿 번호")
+    template_number: Optional[int] = Field(None, ge=1, le=6, description="템플릿 번호 (1-3: 일반, 4-6: 쇼츠)")
     
     @validator('end_time')
     def validate_times(cls, v, values):
@@ -50,7 +50,7 @@ class BatchClipRequest(BaseModel):
     clips: List[Dict[str, Any]] = Field(..., min_items=1, description="클립 목록")
     clipping_type: int = Field(1, ge=1, le=2, description="클리핑 타입")
     individual_clips: bool = Field(False, description="개별 클립 저장 여부")
-    template_number: Optional[int] = Field(None, ge=1, le=3, description="템플릿 번호")
+    template_number: Optional[int] = Field(None, ge=1, le=6, description="템플릿 번호 (1-3: 일반, 4-6: 쇼츠)")
     
     @validator('media_path')
     def validate_media_path(cls, v):
@@ -100,8 +100,18 @@ async def process_single_clip(job_id: str, request: ClipRequest):
                 "keywords": request.keywords
             }
             
+            # Map template numbers to names
+            template_mapping = {
+                1: "template_1",
+                2: "template_2", 
+                3: "template_3",
+                4: "shorts_template_crop",
+                5: "shorts_template_fit",
+                6: "shorts_template_blur"
+            }
+            
             success = encoder.create_from_template(
-                template_name=f"template_{request.template_number}",
+                template_name=template_mapping[request.template_number],
                 media_path=request.media_path,
                 subtitle_data=subtitle_data,
                 output_path=str(output_path),
