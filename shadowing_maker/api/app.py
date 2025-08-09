@@ -9,7 +9,7 @@ import os
 import logging
 
 # Import routers
-from .routes import health, job, clip, batch, admin
+from .routes import health, job, clip, batch, admin, youtube
 
 # Configure logging
 logging.basicConfig(
@@ -46,6 +46,7 @@ def create_app() -> FastAPI:
     app.include_router(clip.router)
     app.include_router(batch.router)
     app.include_router(admin.router)
+    app.include_router(youtube.router)
     
     # Mount static files if directories exist
     frontend_path = Path(__file__).parent.parent.parent / "frontend"

@@ -1,0 +1,189 @@
+{
+  "all_messages": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "location": {
+        "url": "http://192.168.0.185:8080/api/youtube/settings",
+        "lineNumber": 0,
+        "columnNumber": 0
+      },
+      "timestamp": "2025-08-08T22:27:34.133675"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "location": {
+        "url": "http://192.168.0.185:8080/api/youtube/status",
+        "lineNumber": 0,
+        "columnNumber": 0
+      },
+      "timestamp": "2025-08-08T22:27:34.134286"
+    },
+    {
+      "type": "warning",
+      "text": "YouTube API not available",
+      "location": {
+        "url": "http://192.168.0.185:8080/frontend/js/youtube.js",
+        "lineNumber": 11,
+        "columnNumber": 20
+      },
+      "timestamp": "2025-08-08T22:27:34.135247"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load video for job: 11770f5a-8467-49c3-9b23-0cbfdbf6abca",
+      "location": {
+        "url": "http://192.168.0.185:8080/frontend/js/manage.js",
+        "lineNumber": 388,
+        "columnNumber": 12
+      },
+      "timestamp": "2025-08-08T22:27:34.181191"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load video for job: 05b63b3b-f2b2-4ebf-b23b-5dcfb4819ed7",
+      "location": {
+        "url": "http://192.168.0.185:8080/frontend/js/manage.js",
+        "lineNumber": 388,
+        "columnNumber": 12
+      },
+      "timestamp": "2025-08-08T22:27:34.181380"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "location": {
+        "url": "http://192.168.0.185:8080/api/youtube/status",
+        "lineNumber": 0,
+        "columnNumber": 0
+      },
+      "timestamp": "2025-08-08T22:27:37.854188"
+    },
+    {
+      "type": "warning",
+      "text": "YouTube API not available",
+      "location": {
+        "url": "http://192.168.0.185:8080/frontend/js/youtube.js",
+        "lineNumber": 11,
+        "columnNumber": 20
+      },
+      "timestamp": "2025-08-08T22:27:37.854376"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "location": {
+        "url": "http://192.168.0.185:8080/api/job/11770f5a-8467-49c3-9b23-0cbfdbf6abca",
+        "lineNumber": 0,
+        "columnNumber": 0
+      },
+      "timestamp": "2025-08-08T22:27:37.854450"
+    },
+    {
+      "type": "error",
+      "text": "Error loading job: Error: Failed to load job details\n    at loadJobDetail (http://192.168.0.185:8080/clip-detail.html?id=11770f5a-8467-49c3-9b23-0cbfdbf6abca:321:27)",
+      "location": {
+        "url": "http://192.168.0.185:8080/clip-detail.html?id=11770f5a-8467-49c3-9b23-0cbfdbf6abca",
+        "lineNumber": 326,
+        "columnNumber": 24
+      },
+      "timestamp": "2025-08-08T22:27:37.854599"
+    }
+  ],
+  "errors": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "location": {
+        "url": "http://192.168.0.185:8080/api/youtube/settings",
+        "lineNumber": 0,
+        "columnNumber": 0
+      },
+      "timestamp": "2025-08-08T22:27:34.133675"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "location": {
+        "url": "http://192.168.0.185:8080/api/youtube/status",
+        "lineNumber": 0,
+        "columnNumber": 0
+      },
+      "timestamp": "2025-08-08T22:27:34.134286"
+    },
+    {
+      "type": "warning",
+      "text": "YouTube API not available",
+      "location": {
+        "url": "http://192.168.0.185:8080/frontend/js/youtube.js",
+        "lineNumber": 11,
+        "columnNumber": 20
+      },
+      "timestamp": "2025-08-08T22:27:34.135247"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load video for job: 11770f5a-8467-49c3-9b23-0cbfdbf6abca",
+      "location": {
+        "url": "http://192.168.0.185:8080/frontend/js/manage.js",
+        "lineNumber": 388,
+        "columnNumber": 12
+      },
+      "timestamp": "2025-08-08T22:27:34.181191"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load video for job: 05b63b3b-f2b2-4ebf-b23b-5dcfb4819ed7",
+      "location": {
+        "url": "http://192.168.0.185:8080/frontend/js/manage.js",
+        "lineNumber": 388,
+        "columnNumber": 12
+      },
+      "timestamp": "2025-08-08T22:27:34.181380"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "location": {
+        "url": "http://192.168.0.185:8080/api/youtube/status",
+        "lineNumber": 0,
+        "columnNumber": 0
+      },
+      "timestamp": "2025-08-08T22:27:37.854188"
+    },
+    {
+      "type": "warning",
+      "text": "YouTube API not available",
+      "location": {
+        "url": "http://192.168.0.185:8080/frontend/js/youtube.js",
+        "lineNumber": 11,
+        "columnNumber": 20
+      },
+      "timestamp": "2025-08-08T22:27:37.854376"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "location": {
+        "url": "http://192.168.0.185:8080/api/job/11770f5a-8467-49c3-9b23-0cbfdbf6abca",
+        "lineNumber": 0,
+        "columnNumber": 0
+      },
+      "timestamp": "2025-08-08T22:27:37.854450"
+    },
+    {
+      "type": "error",
+      "text": "Error loading job: Error: Failed to load job details\n    at loadJobDetail (http://192.168.0.185:8080/clip-detail.html?id=11770f5a-8467-49c3-9b23-0cbfdbf6abca:321:27)",
+      "location": {
+        "url": "http://192.168.0.185:8080/clip-detail.html?id=11770f5a-8467-49c3-9b23-0cbfdbf6abca",
+        "lineNumber": 326,
+        "columnNumber": 24
+      },
+      "timestamp": "2025-08-08T22:27:37.854599"
+    }
+  ],
+  "page_errors": [],
+  "final_url": "http://192.168.0.185:8080/clip-detail.html?id=11770f5a-8467-49c3-9b23-0cbfdbf6abca",
+  "initial_page_errors": 9
+}

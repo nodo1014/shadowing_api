@@ -58,7 +58,7 @@ function displayJobsList(jobs) {
                        onchange="toggleJobSelection('${job.id}', this)">
             </td>
             <td>${formatDate(job.created_at)}</td>
-            <td title="${job.media_path || ''}">${mediaName}</td>
+            <td title="${job.media_path || ''}" onclick="openJobDetail('${job.id}')">${mediaName}</td>
             <td>${job.start_time ? job.start_time.toFixed(1) : '0'}s - ${job.end_time ? job.end_time.toFixed(1) : '0'}s</td>
             <td>${templateType}</td>
             <td><span class="status-badge ${job.status}">${getStatusText(job.status)}</span></td>
@@ -147,7 +147,7 @@ function displayJobsGrid(jobs) {
                     controlsList="nodownload"
                     preload="metadata" 
                     onloadedmetadata="this.currentTime = 0.1"
-                    onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    onerror="handleVideoError(this, '${job.id}')">
             </video>
             <div class="no-preview" style="display: none;">
                 <span>미리보기 없음</span>
@@ -167,7 +167,7 @@ function displayJobsGrid(jobs) {
             </div>
             <div class="job-card-body">
                 <div class="job-card-header">
-                    <div class="job-card-title" title="${job.media_path || ''}">${mediaName}</div>
+                    <div class="job-card-title" title="${job.media_path || ''}" onclick="openJobDetail('${job.id}')">${mediaName}</div>
                     <div class="job-card-template">${templateType}</div>
                 </div>
                 <div class="job-card-info">
@@ -181,11 +181,7 @@ function displayJobsGrid(jobs) {
                 <div class="job-card-actions">
                     ${job.status === 'completed' && job.output_file ? 
                         `<button class="download-btn" onclick="downloadJob('${job.id}')">다운로드</button>
-                         <button class="youtube-btn" onclick="showYouTubeUploadModal('${job.id}')" title="YouTube에 업로드">
-                             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                 <path d="M8.051 1.999h.089c.822.003 4.987.033 6.11.335a2.01 2.01 0 0 1 1.415 1.42c.101.38.172.883.22 1.402l.01.104.022.26.008.104c.065.914.073 1.77.074 1.957v.075c-.001.194-.01 1.108-.082 2.06l-.008.105-.009.104c-.05.572-.124 1.14-.235 1.558a2.007 2.007 0 0 1-1.415 1.42c-1.16.312-5.569.334-6.18.335h-.142c-.309 0-1.587-.006-2.927-.052l-.17-.006-.087-.004-.171-.007-.171-.007c-1.11-.049-2.167-.128-2.654-.26a2.007 2.007 0 0 1-1.415-1.419c-.111-.417-.185-.986-.235-1.558L.09 9.82l-.008-.104A31.4 31.4 0 0 1 0 7.68v-.122C.002 7.343.01 6.6.064 5.78l.007-.103.003-.052.008-.104.022-.26.01-.104c.048-.519.119-1.023.22-1.402a2.007 2.007 0 0 1 1.415-1.42c.487-.13 1.544-.21 2.654-.26l.17-.007.172-.006.086-.003.171-.007A99.788 99.788 0 0 1 7.858 2h.193zM6.4 5.209v4.818l4.157-2.408L6.4 5.209z"/>
-                             </svg>
-                         </button>` : 
+                         <button class="delete-btn" onclick="deleteJob('${job.id}')">삭제</button>` : 
                         `<button class="delete-btn" onclick="deleteJob('${job.id}')">삭제</button>`}
                 </div>
             </div>
@@ -235,6 +231,11 @@ window.refreshJobs = async function() {
 // 작업 다운로드
 window.downloadJob = function(jobId) {
     window.open(`${API_BASE_URL}/api/download/${jobId}`, '_blank');
+}
+
+// 작업 상세 페이지 열기
+window.openJobDetail = function(jobId) {
+    window.location.href = `/youtube-player.html?id=${jobId}`;
 }
 
 // 작업 삭제
@@ -380,5 +381,18 @@ window.cleanupOrphanedRecords = async function() {
     } catch (error) {
         console.error('Cleanup failed:', error);
         showError('DB 정리에 실패했습니다.');
+    }
+}
+
+// 비디오 에러 처리
+window.handleVideoError = function(video, jobId) {
+    console.error(`Failed to load video for job: ${jobId}`);
+    video.style.display = 'none';
+    video.nextElementSibling.style.display = 'flex';
+    
+    // 해당 job 카드에 에러 표시 추가
+    const card = video.closest('.job-card');
+    if (card) {
+        card.classList.add('video-error');
     }
 }

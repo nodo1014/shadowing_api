@@ -723,6 +723,14 @@ tr:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
+.job-card.video-error {
+    opacity: 0.8;
+}
+
+.job-card.video-error .job-card-thumbnail {
+    background: #fef2f2;
+}
+
 .job-card-thumbnail {
     position: relative;
     width: 100%;
@@ -807,11 +815,18 @@ tr:hover {
 .job-card-title {
     font-size: 14px;
     font-weight: 600;
-    color: var(--gray-800);
+    color: var(--primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     flex: 1;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.job-card-title:hover {
+    text-decoration: underline;
+    color: var(--primary-hover);
 }
 
 .job-card-template {
@@ -894,5 +909,16 @@ tr:hover {
 /* Hide table when grid view is active */
 .jobs-table.hidden {
     display: none;
+}
+
+/* 리스트 뷰의 클릭 가능한 제목 */
+.jobs-table td[onclick] {
+    cursor: pointer;
+    color: var(--primary);
+}
+
+.jobs-table td[onclick]:hover {
+    text-decoration: underline;
+    color: var(--primary-hover);
 }
 }

@@ -62,6 +62,7 @@ class TemplateVideoEncoder(VideoEncoder):
         
         # Create clips based on template
         temp_clips = []
+        temp_notice_files = []  # Track notice ASS files for cleanup
         clip_base_dir = None
         
         if save_individual_clips:
@@ -79,6 +80,18 @@ class TemplateVideoEncoder(VideoEncoder):
                     
                     # Get subtitle file for this clip
                     subtitle_file = subtitle_files.get(clip_config['subtitle_type'])
+                    
+                    # For no_subtitle clips, create "자막 없이 듣기" notice
+                    if clip_config['subtitle_mode'] == 'no_subtitle' and subtitle_file is None:
+                        temp_notice_ass = tempfile.NamedTemporaryFile(suffix='_notice.ass', delete=False)
+                        temp_notice_ass.close()
+                        
+                        from ass_generator import ASSGenerator
+                        notice_generator = ASSGenerator()
+                        notice_duration = duration if duration else 5.0
+                        notice_generator.generate_no_subtitle_notice(temp_notice_ass.name, notice_duration)
+                        subtitle_file = temp_notice_ass.name
+                        temp_notice_files.append(temp_notice_ass.name)  # Track for cleanup
                     
                     # Check if this clip should use still frame mode
                     video_mode = clip_config.get('video_mode', 'normal')
@@ -128,6 +141,11 @@ class TemplateVideoEncoder(VideoEncoder):
             for subtitle_file in subtitle_files.values():
                 if subtitle_file and os.path.exists(subtitle_file):
                     os.unlink(subtitle_file)
+            
+            # Clean up notice ASS files
+            for notice_file in temp_notice_files:
+                if os.path.exists(notice_file):
+                    os.unlink(notice_file)
     
     def _prepare_subtitle_files(self, subtitle_data: Dict, template_name: str, clip_duration: float = None, gap_duration: float = 0.0) -> Dict[str, str]:
         """템플릿에 필요한 자막 파일들을 준비"""

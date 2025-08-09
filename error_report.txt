@@ -1,0 +1,53 @@
+Console Error Report
+==================================================
+
+Total console messages: 9
+Total errors/warnings: 9
+
+Errors found:
+
+1. ERROR
+   Message: Failed to load resource: the server responded with a status of 404 (Not Found)
+   Location: {'url': 'http://192.168.0.185:8080/api/youtube/settings', 'lineNumber': 0, 'columnNumber': 0}
+   Timestamp: 2025-08-08T22:27:34.133675
+
+2. ERROR
+   Message: Failed to load resource: the server responded with a status of 404 (Not Found)
+   Location: {'url': 'http://192.168.0.185:8080/api/youtube/status', 'lineNumber': 0, 'columnNumber': 0}
+   Timestamp: 2025-08-08T22:27:34.134286
+
+3. WARNING
+   Message: YouTube API not available
+   Location: {'url': 'http://192.168.0.185:8080/frontend/js/youtube.js', 'lineNumber': 11, 'columnNumber': 20}
+   Timestamp: 2025-08-08T22:27:34.135247
+
+4. ERROR
+   Message: Failed to load video for job: 11770f5a-8467-49c3-9b23-0cbfdbf6abca
+   Location: {'url': 'http://192.168.0.185:8080/frontend/js/manage.js', 'lineNumber': 388, 'columnNumber': 12}
+   Timestamp: 2025-08-08T22:27:34.181191
+
+5. ERROR
+   Message: Failed to load video for job: 05b63b3b-f2b2-4ebf-b23b-5dcfb4819ed7
+   Location: {'url': 'http://192.168.0.185:8080/frontend/js/manage.js', 'lineNumber': 388, 'columnNumber': 12}
+   Timestamp: 2025-08-08T22:27:34.181380
+
+6. ERROR
+   Message: Failed to load resource: the server responded with a status of 404 (Not Found)
+   Location: {'url': 'http://192.168.0.185:8080/api/youtube/status', 'lineNumber': 0, 'columnNumber': 0}
+   Timestamp: 2025-08-08T22:27:37.854188
+
+7. WARNING
+   Message: YouTube API not available
+   Location: {'url': 'http://192.168.0.185:8080/frontend/js/youtube.js', 'lineNumber': 11, 'columnNumber': 20}
+   Timestamp: 2025-08-08T22:27:37.854376
+
+8. ERROR
+   Message: Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+   Location: {'url': 'http://192.168.0.185:8080/api/job/11770f5a-8467-49c3-9b23-0cbfdbf6abca', 'lineNumber': 0, 'columnNumber': 0}
+   Timestamp: 2025-08-08T22:27:37.854450
+
+9. ERROR
+   Message: Error loading job: Error: Failed to load job details
+    at loadJobDetail (http://192.168.0.185:8080/clip-detail.html?id=11770f5a-8467-49c3-9b23-0cbfdbf6abca:321:27)
+   Location: {'url': 'http://192.168.0.185:8080/clip-detail.html?id=11770f5a-8467-49c3-9b23-0cbfdbf6abca', 'lineNumber': 326, 'columnNumber': 24}
+   Timestamp: 2025-08-08T22:27:37.854599

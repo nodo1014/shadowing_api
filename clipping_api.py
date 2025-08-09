@@ -339,6 +339,17 @@ async def admin_page():
     """관리자 페이지"""
     return FileResponse("admin.html")
 
+
+@app.get("/clip-detail.html", response_class=FileResponse, tags=["Pages"])
+async def clip_detail_page():
+    """클립 상세 페이지"""
+    return FileResponse("clip-detail.html")
+
+@app.get("/youtube-player.html", response_class=FileResponse, tags=["Pages"])
+async def youtube_player_page():
+    """유튜브 스타일 플레이어 페이지"""
+    return FileResponse("youtube-player.html")
+
 @app.get("/restful", response_class=HTMLResponse, include_in_schema=False)
 async def restful_docs():
     """RESTful API 문서 페이지"""
@@ -765,8 +776,13 @@ async def stream_video(job_id: str, request: Request):
         if db_job and db_job.output_file:
             output_file = db_job.output_file
     
-    if not output_file or not os.path.exists(output_file):
-        raise HTTPException(status_code=404, detail="Video not found")
+    if not output_file:
+        logger.error(f"Video not found in database for job_id: {job_id}")
+        raise HTTPException(status_code=404, detail="Video not found in database")
+    
+    if not os.path.exists(output_file):
+        logger.error(f"Video file not found on disk: {output_file} for job_id: {job_id}")
+        raise HTTPException(status_code=404, detail="Video file not found on disk")
     
     # Get file size
     file_size = os.path.getsize(output_file)
@@ -1118,6 +1134,51 @@ async def download_batch_clip(job_id: str, clip_num: str):
         media_type="video/mp4",
         filename=f"batch_{job_id}_clip_{clip_num_int:03d}.mp4"
     )
+
+
+@app.get("/api/job/{job_id}",
+         tags=["Job Management"],
+         summary="작업 상세 조회")
+async def get_job_detail(job_id: str):
+    """특정 작업의 상세 정보를 조회합니다."""
+    try:
+        job = get_job_by_id(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        
+        # Handle keywords safely
+        keywords = []
+        if hasattr(job, 'keywords') and job.keywords:
+            if isinstance(job.keywords, list):
+                keywords = job.keywords
+            elif isinstance(job.keywords, str):
+                keywords = [k.strip() for k in job.keywords.split(',') if k.strip()]
+        
+        return {
+            "id": job.id,
+            "user_id": getattr(job, 'user_id', None),
+            "media_path": getattr(job, 'media_path', None),
+            "media_filename": getattr(job, 'media_filename', None),
+            "start_time": getattr(job, 'start_time', None),
+            "end_time": getattr(job, 'end_time', None),
+            "text_eng": getattr(job, 'text_eng', None),
+            "text_kor": getattr(job, 'text_kor', None),
+            "note": getattr(job, 'note', None),
+            "keywords": keywords,
+            "clipping_type": getattr(job, 'clipping_type', None),
+            "template_number": getattr(job, 'template_number', None),
+            "output_file": getattr(job, 'output_file', None),
+            "output_size": getattr(job, 'output_size', None),
+            "status": getattr(job, 'status', 'unknown'),
+            "progress": getattr(job, 'progress', 0),
+            "message": getattr(job, 'message', None),
+            "error_message": getattr(job, 'error_message', None),
+            "created_at": job.created_at.isoformat() if hasattr(job, 'created_at') and job.created_at else None,
+            "updated_at": job.updated_at.isoformat() if hasattr(job, 'updated_at') and job.updated_at else None
+        }
+    except Exception as e:
+        logger.error(f"Error getting job detail for {job_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @app.delete("/api/job/{job_id}",

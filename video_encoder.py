@@ -33,8 +33,8 @@ class VideoEncoder:
             },
             "with_subtitle": {
                 "video_codec": "libx264",
-                "preset": "medium",  # 품질/속도 균형: ultrafast -> medium
-                "crf": "16",  # 동일한 품질 유지
+                "preset": "slow",  # 자막 렌더링 품질 향상
+                "crf": "18",  # 약간 높여서 부드러운 렌더링
                 "profile": "high",
                 "level": "4.1",
                 "pix_fmt": "yuv420p",
@@ -42,9 +42,9 @@ class VideoEncoder:
                 "height": "1080",
                 "audio_codec": "aac",
                 "audio_bitrate": "192k",
-                # 추가 품질 옵션
-                "x264opts": "keyint=240:min-keyint=24:scenecut=40",
-                "tune": "film"  # 영화/드라마에 최적화
+                # 추가 품질 옵션 - 자막에 최적화
+                "x264opts": "keyint=240:min-keyint=24:scenecut=40:deblock=-1,-1",
+                "tune": "animation"  # 자막/텍스트에 더 적합
             }
         }
         
@@ -227,16 +227,30 @@ class VideoEncoder:
             clip_number = Path(output_path).stem.split('_')[-1] if '_' in Path(output_path).stem else '0000'
             clip_index = 1
             
-            # 1. Create no-subtitle clips
+            # 1. Create no-subtitle clips with "자막 없이 듣기" notice
             for i in range(self.pattern["no_subtitle"]):
                 temp_file = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
                 temp_clips.append(temp_file.name)
                 temp_file.close()
                 
+                # Create ASS file with "자막 없이 듣기" notice
+                temp_notice_ass = tempfile.NamedTemporaryFile(suffix='_notice.ass', delete=False)
+                temp_notice_ass.close()
+                
+                from ass_generator import ASSGenerator
+                notice_generator = ASSGenerator()
+                # Generate notice ASS file with duration if available
+                notice_duration = duration if duration else 5.0
+                notice_generator.generate_no_subtitle_notice(temp_notice_ass.name, notice_duration)
+                
                 if not self._encode_clip(media_path, temp_clips[-1], 
                                        padded_start, duration, 
-                                       subtitle_file=None):
+                                       subtitle_file=temp_notice_ass.name):
                     raise Exception(f"Failed to create no-subtitle clip {i+1}")
+                
+                # Clean up notice ASS file
+                if os.path.exists(temp_notice_ass.name):
+                    os.unlink(temp_notice_ass.name)
                 
                 # Save individual clip if requested
                 if save_individual_clips:
@@ -399,8 +413,6 @@ class VideoEncoder:
     
     def _concatenate_clips(self, clip_paths: List[str], output_path: str, gap_duration: float = 0.5) -> bool:
         """Concatenate multiple video clips with gaps between them"""
-        
-        print(f"[DEBUG] _concatenate_clips called with {len(clip_paths)} clips, gap_duration={gap_duration}")
         
         if not clip_paths:
             return False

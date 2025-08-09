@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shadowing Maker - YouTube Player</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Roboto', Arial, sans-serif;
+            background: #0f0f0f;
+            color: #f1f1f1;
+            line-height: 1.5;
+        }
+        
+        /* 헤더 */
+        .header {
+            background: #0f0f0f;
+            padding: 0 24px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+        }
+        
+        .header-start {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+        
+        .menu-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: transparent;
+            color: #fff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+        }
+        
+        .menu-btn:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        
+        .logo-icon {
+            width: 90px;
+            height: 20px;
+            background: #ff0000;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 14px;
+        }
+        
+        .logo-text {
+            color: #fff;
+            font-size: 20px;
+            font-weight: 400;
+            margin-left: 4px;
+        }
+        
+        /* 사이드바 */
+        .sidebar {
+            position: fixed;
+            top: 56px;
+            left: 0;
+            width: 240px;
+            height: calc(100vh - 56px);
+            background: #0f0f0f;
+            overflow-y: auto;
+            z-index: 900;
+            transition: transform 0.3s;
+            transform: translateX(0);
+        }
+        
+        .sidebar.collapsed {
+            width: 72px;
+        }
+        
+        .sidebar.hidden {
+            transform: translateX(-100%);
+        }
+        
+        .sidebar-section {
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            padding: 0 24px;
+            height: 40px;
+            color: #f1f1f1;
+            text-decoration: none;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .sidebar.collapsed .sidebar-item {
+            padding: 0 24px;
+            justify-content: center;
+        }
+        
+        .sidebar-item:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .sidebar-item.active {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .sidebar-icon {
+            width: 24px;
+            height: 24px;
+            flex-shrink: 0;
+        }
+        
+        .sidebar-text {
+            font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .sidebar.collapsed .sidebar-text {
+            display: none;
+        }
+        
+        .sidebar-header {
+            padding: 8px 24px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #aaa;
+            text-transform: uppercase;
+        }
+        
+        .sidebar.collapsed .sidebar-header {
+            display: none;
+        }
+        
+        /* 메인 컨테이너 */
+        .main-wrapper {
+            margin-top: 56px;
+            margin-left: 240px;
+            transition: margin-left 0.3s;
+        }
+        
+        .sidebar.collapsed ~ .main-wrapper {
+            margin-left: 72px;
+        }
+        
+        .sidebar.hidden ~ .main-wrapper {
+            margin-left: 0;
+        }
+        
+        .main-container {
+            max-width: 1920px;
+            margin: 0 auto;
+            padding: 24px 24px 0;
+            display: grid;
+            grid-template-columns: 1fr 402px;
+            gap: 24px;
+        }
+        
+        /* 비디오 플레이어 영역 */
+        .primary {
+            min-width: 0;
+        }
+        
+        .video-player-container {
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            aspect-ratio: 16 / 9;
+            position: relative;
+        }
+        
+        .video-player {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        .no-video {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #181818;
+            color: #aaa;
+            gap: 16px;
+        }
+        
+        .no-video-icon {
+            font-size: 64px;
+            opacity: 0.3;
+        }
+        
+        /* 비디오 정보 */
+        .video-info {
+            margin-top: 12px;
+        }
+        
+        .video-title {
+            font-size: 20px;
+            font-weight: 400;
+            line-height: 28px;
+            margin-bottom: 12px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        /* 채널 정보 및 액션 */
+        .channel-section {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+        
+        .channel-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .channel-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #ff0000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 500;
+            color: white;
+        }
+        
+        .channel-details {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .channel-name {
+            font-size: 16px;
+            font-weight: 500;
+            color: #f1f1f1;
+        }
+        
+        .subscriber-count {
+            font-size: 12px;
+            color: #aaa;
+        }
+        
+        .subscribe-btn {
+            background: #f1f1f1;
+            color: #0f0f0f;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 18px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .subscribe-btn:hover {
+            background: #d9d9d9;
+        }
+        
+        /* 액션 버튼들 */
+        .video-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .action-group {
+            display: flex;
+            gap: 8px;
+            margin-left: auto;
+        }
+        
+        .like-dislike-group {
+            display: flex;
+            background: rgba(255,255,255,0.1);
+            border-radius: 18px;
+            overflow: hidden;
+        }
+        
+        .action-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0 16px;
+            height: 36px;
+            background: rgba(255,255,255,0.1);
+            color: #f1f1f1;
+            border: none;
+            border-radius: 18px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .like-dislike-group .action-btn {
+            background: transparent;
+            border-radius: 0;
+        }
+        
+        .like-dislike-group .action-btn:first-child {
+            border-radius: 18px 0 0 18px;
+        }
+        
+        .like-dislike-group .action-btn:last-child {
+            border-radius: 0 18px 18px 0;
+            border-left: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .action-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .action-btn.primary {
+            background: #ff0000;
+            color: white;
+        }
+        
+        .action-btn.primary:hover {
+            background: #cc0000;
+        }
+        
+        /* 설명 영역 */
+        .description-box {
+            background: rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 12px;
+            margin: 12px 0;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .description-box:hover {
+            background: rgba(255,255,255,0.15);
+        }
+        
+        .description-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        
+        .views-date {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .description-content {
+            font-size: 14px;
+            line-height: 20px;
+        }
+        
+        .subtitle-section {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .subtitle-label {
+            font-size: 12px;
+            font-weight: 500;
+            color: #aaa;
+            margin-bottom: 4px;
+        }
+        
+        .subtitle-text {
+            font-size: 14px;
+            line-height: 20px;
+            margin-bottom: 12px;
+        }
+        
+        /* 사이드바 */
+        .secondary {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        /* 필터 칩 */
+        .filter-chips {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .chip {
+            padding: 8px 12px;
+            background: rgba(255,255,255,0.1);
+            color: #f1f1f1;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+        
+        .chip:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .chip.active {
+            background: #f1f1f1;
+            color: #0f0f0f;
+        }
+        
+        /* 추천 비디오 카드 */
+        .video-card {
+            display: flex;
+            gap: 8px;
+            cursor: pointer;
+            margin-bottom: 8px;
+            transition: all 0.2s;
+        }
+        
+        .video-card:hover .video-thumbnail {
+            transform: scale(1.05);
+        }
+        
+        .video-thumbnail {
+            width: 168px;
+            height: 94px;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+            flex-shrink: 0;
+            transition: transform 0.2s;
+        }
+        
+        .video-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .thumbnail-preview {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(145deg, #1a1a1a, #2a2a2a);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-size: 32px;
+        }
+        
+        .thumbnail-preview.completed {
+            background: linear-gradient(145deg, #1a3a1a, #2a4a2a);
+        }
+        
+        .thumbnail-preview.processing {
+            background: linear-gradient(145deg, #3a3a1a, #4a4a2a);
+        }
+        
+        .duration {
+            position: absolute;
+            bottom: 4px;
+            right: 4px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 3px 4px;
+            border-radius: 2px;
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+        }
+        
+        .video-progress {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .video-progress-bar {
+            height: 100%;
+            background: #ff0000;
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
+        .video-card-info {
+            flex: 1;
+            min-width: 0;
+            padding-right: 24px;
+        }
+        
+        .video-card-title {
+            font-size: 14px;
+            font-weight: 400;
+            line-height: 20px;
+            margin-bottom: 4px;
+            color: #f1f1f1;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .video-card:hover .video-card-title {
+            color: #fff;
+        }
+        
+        .video-card-channel {
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 2px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .verified-badge {
+            width: 12px;
+            height: 12px;
+            background: #aaa;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8px;
+            color: #0f0f0f;
+        }
+        
+        .video-card-meta {
+            font-size: 12px;
+            color: #aaa;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .video-card-meta span:not(:last-child)::after {
+            content: '•';
+            margin-left: 4px;
+        }
+        
+        /* 추가 메뉴 버튼 */
+        .video-menu-btn {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 24px;
+            height: 24px;
+            background: transparent;
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+        }
+        
+        .video-card:hover .video-menu-btn {
+            display: flex;
+        }
+        
+        .video-menu-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        
+        /* 사이드바 섹션 구분선 */
+        .sidebar-divider {
+            height: 1px;
+            background: rgba(255,255,255,0.1);
+            margin: 16px 0;
+        }
+        
+        /* 로드 더 버튼 */
+        .load-more-btn {
+            width: 100%;
+            padding: 8px;
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #3ea6ff;
+            border-radius: 18px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 16px;
+            transition: all 0.2s;
+        }
+        
+        .load-more-btn:hover {
+            background: rgba(62,166,255,0.1);
+            border-color: #3ea6ff;
+        }
+        
+        /* 댓글 섹션 */
+        .comments-section {
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .comments-header {
+            display: flex;
+            align-items: center;
+            gap: 32px;
+            margin-bottom: 24px;
+        }
+        
+        .comments-count {
+            font-size: 16px;
+            font-weight: 400;
+        }
+        
+        .sort-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: transparent;
+            border: none;
+            color: #f1f1f1;
+            font-size: 14px;
+            cursor: pointer;
+            padding: 8px;
+            margin: -8px;
+            border-radius: 8px;
+        }
+        
+        .sort-btn:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        /* 상태 배지 */
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .status-badge.completed {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+        
+        .status-badge.processing {
+            background: rgba(245, 158, 11, 0.2);
+            color: #f59e0b;
+        }
+        
+        .status-badge.failed {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        
+        @media (max-width: 1200px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .sidebar.show-mobile {
+                transform: translateX(0);
+            }
+            
+            .main-wrapper {
+                margin-left: 0;
+            }
+        }
+        
+        @media (max-width: 1000px) {
+            .main-container {
+                grid-template-columns: 1fr;
+                padding: 16px;
+            }
+            
+            .secondary {
+                margin-top: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 헤더 -->
+    <header class="header">
+        <div class="header-start">
+            <button class="menu-btn" id="menu-toggle">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+                </svg>
+            </button>
+            <a href="/" class="logo">
+                <div class="logo-icon">Shadowing</div>
+                <span class="logo-text">Maker</span>
+            </a>
+        </div>
+    </header>
+    
+    <!-- 사이드바 -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-section">
+            <a href="/" class="sidebar-item">
+                <svg class="sidebar-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+                </svg>
+                <span class="sidebar-text">홈</span>
+            </a>
+            <a href="#" class="sidebar-item">
+                <svg class="sidebar-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M18 3v2h-2V3H8v2H6V3H4v18h2v-2h2v2h8v-2h2v2h2V3h-2zM8 17H6v-2h2v2zm0-4H6v-2h2v2zm0-4H6V7h2v2zm10 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V7h2v2z"/>
+                </svg>
+                <span class="sidebar-text">Shorts</span>
+            </a>
+            <a href="#" class="sidebar-item">
+                <svg class="sidebar-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/>
+                </svg>
+                <span class="sidebar-text">구독</span>
+            </a>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-header">나</div>
+            <a href="#" class="sidebar-item">
+                <svg class="sidebar-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
+                </svg>
+                <span class="sidebar-text">내 채널</span>
+            </a>
+            <a href="#" class="sidebar-item">
+                <svg class="sidebar-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+                </svg>
+                <span class="sidebar-text">시청 기록</span>
+            </a>
+            <a href="#" class="sidebar-item">
+                <svg class="sidebar-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z"/>
+                </svg>
+                <span class="sidebar-text">재생목록</span>
+            </a>
+            <a href="#" class="sidebar-item">
+                <svg class="sidebar-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
+                </svg>
+                <span class="sidebar-text">내 동영상</span>
+            </a>
+            <a href="#" class="sidebar-item">
+                <svg class="sidebar-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                </svg>
+                <span class="sidebar-text">나중에 볼 동영상</span>
+            </a>
+            <a href="#" class="sidebar-item">
+                <svg class="sidebar-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/>
+                </svg>
+                <span class="sidebar-text">좋아요 표시한 동영상</span>
+            </a>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-header">탐색</div>
+            <a href="#" class="sidebar-item">
+                <svg class="sidebar-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M17.53 11.2c-.23-.3-.5-.56-.76-.82-.65-.6-1.4-1.03-2.03-1.66-1.46-1.46-1.78-3.87-.85-5.72-.9.23-1.75.75-2.45 1.32C8.9 6.4 7.9 10.07 9.1 13.22c.04.1.08.2.08.33 0 .22-.15.42-.35.5-.23.1-.47.04-.66-.12-.1-.07-.17-.17-.24-.26-1.13-1.43-1.31-3.48-.55-5.12C5.78 10 4.87 12.3 5 14.47c.06.5.12 1 .29 1.5.14.6.41 1.2.71 1.73 1.08 1.73 2.95 2.97 4.96 3.22 2.14.27 4.43-.12 6.07-1.6 1.83-1.66 2.47-4.32 1.53-6.6l-.13-.26c-.21-.46-.77-1.26-.77-1.26zm-3.16 6.3c-.28.24-.74.5-1.1.6-1.12.4-2.24-.16-2.9-.82 1.19-.28 1.9-1.16 2.11-2.05.17-.8-.15-1.46-.28-2.23-.12-.74-.1-1.37.17-2.06.19.38.39.76.63 1.06.77 1 1.98 1.44 2.24 2.8.04.14.06.28.06.43.03.82-.33 1.72-.93 2.27z"/>
+                </svg>
+                <span class="sidebar-text">인기 급상승</span>
+            </a>
+            <a href="#" class="sidebar-item">
+                <svg class="sidebar-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M11 7l6 3.5-6 3.5V7zm7 13H4V6H3v15h15v-1zm3-2H6V3h15v15zM7 17h13V4H7v13z"/>
+                </svg>
+                <span class="sidebar-text">쇼핑</span>
+            </a>
+            <a href="#" class="sidebar-item">
+                <svg class="sidebar-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+                <span class="sidebar-text">음악</span>
+            </a>
+        </div>
+    </nav>
+    
+    <!-- 메인 래퍼 -->
+    <div class="main-wrapper">
+        <!-- 메인 컨텐츠 -->
+        <div class="main-container">
+        <!-- 비디오 플레이어 영역 -->
+        <div class="primary">
+            <!-- 비디오 플레이어 -->
+            <div class="video-player-container" id="video-container">
+                <!-- 동적으로 추가됨 -->
+            </div>
+            
+            <!-- 비디오 정보 -->
+            <div class="video-info">
+                <h1 class="video-title" id="video-title">제목 불러오는 중...</h1>
+                
+                <!-- 채널 정보 및 구독 -->
+                <div class="channel-section">
+                    <div class="channel-info">
+                        <div class="channel-avatar">S</div>
+                        <div class="channel-details">
+                            <div class="channel-name">Shadowing Maker</div>
+                            <div class="subscriber-count">클립 생성 도구</div>
+                        </div>
+                    </div>
+                    <button class="subscribe-btn">구독</button>
+                </div>
+                
+                <!-- 액션 버튼들 -->
+                <div class="video-actions">
+                    <div class="action-group">
+                        <div class="like-dislike-group">
+                            <button class="action-btn">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/>
+                                </svg>
+                                좋아요
+                            </button>
+                            <button class="action-btn">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M15 3H6c-.83 0-1.54.5-1.84 1.22l-3.02 7.05c-.09.23-.14.47-.14.73v2c0 1.1.9 2 2 2h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L9.83 23l6.59-6.59c.36-.36.58-.86.58-1.41V5c0-1.1-.9-2-2-2zm4 0v12h4V3h-4z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <button class="action-btn" id="share-btn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/>
+                            </svg>
+                            공유
+                        </button>
+                        <button class="action-btn" id="download-btn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                            </svg>
+                            다운로드
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 설명 박스 -->
+                <div class="description-box">
+                    <div class="description-header">
+                        <div class="views-date">
+                            <span id="view-count">조회수 0회</span>
+                            <span>•</span>
+                            <span id="upload-date">-</span>
+                        </div>
+                    </div>
+                    <div class="description-content" id="description-content">
+                        <!-- 동적으로 추가됨 -->
+                    </div>
+                    <div class="subtitle-section">
+                        <div class="subtitle-label">영문 자막</div>
+                        <div class="subtitle-text" id="text-eng">-</div>
+                        
+                        <div class="subtitle-label">한글 자막</div>
+                        <div class="subtitle-text" id="text-kor">-</div>
+                    </div>
+                </div>
+                
+                <!-- 댓글 섹션 -->
+                <div class="comments-section">
+                    <div class="comments-header">
+                        <span class="comments-count">댓글 0개</span>
+                        <button class="sort-btn">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/>
+                            </svg>
+                            정렬 기준
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 사이드바 -->
+        <div class="secondary">
+            <!-- 필터 칩 -->
+            <div class="filter-chips">
+                <button class="chip active">모두</button>
+                <button class="chip">관련 콘텐츠</button>
+                <button class="chip">최근에 업로드된 동영상</button>
+            </div>
+            
+            <!-- 추천 비디오 목록 -->
+            <div id="related-videos">
+                <!-- 동적으로 추가됨 -->
+            </div>
+        </div>
+    </div>
+    </div> <!-- main-wrapper 종료 -->
+    
+    <script src="frontend/js/common.js"></script>
+    <script src="frontend/js/youtube.js"></script>
+    <script>
+        // 사이드바 토글
+        const menuToggle = document.getElementById('menu-toggle');
+        const sidebar = document.getElementById('sidebar');
+        let sidebarState = 'expanded'; // expanded, collapsed, hidden
+        
+        menuToggle.addEventListener('click', () => {
+            if (sidebarState === 'expanded') {
+                sidebar.classList.add('collapsed');
+                sidebar.classList.remove('hidden');
+                sidebarState = 'collapsed';
+            } else if (sidebarState === 'collapsed') {
+                sidebar.classList.add('hidden');
+                sidebar.classList.remove('collapsed');
+                sidebarState = 'hidden';
+            } else {
+                sidebar.classList.remove('hidden', 'collapsed');
+                sidebarState = 'expanded';
+            }
+        });
+        
+        // URL 파라미터에서 job ID 가져오기
+        const urlParams = new URLSearchParams(window.location.search);
+        const jobId = urlParams.get('id');
+        
+        if (!jobId) {
+            window.location.href = '/';
+        }
+        
+        let currentJob = null;
+        
+        // 작업 상세 정보 로드
+        async function loadJobDetail() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/job/${jobId}`);
+                if (!response.ok) {
+                    throw new Error('Failed to load job details');
+                }
+                
+                currentJob = await response.json();
+                displayJobDetail(currentJob);
+                loadRelatedClips();
+            } catch (error) {
+                console.error('Error loading job:', error);
+                showError('클립 정보를 불러올 수 없습니다.');
+            }
+        }
+        
+        // 작업 정보 표시
+        function displayJobDetail(job) {
+            // 비디오 제목
+            document.getElementById('video-title').textContent = job.text_eng || job.media_path?.split('/').pop() || '제목 없음';
+            
+            // 비디오 플레이어
+            const videoContainer = document.getElementById('video-container');
+            if (job.status === 'completed' && job.output_file) {
+                videoContainer.innerHTML = `
+                    <video class="video-player" 
+                           src="${API_BASE_URL}/api/video/${job.id}" 
+                           controls
+                           autoplay>
+                    </video>
+                `;
+            } else {
+                videoContainer.innerHTML = `
+                    <div class="no-video">
+                        <div class="no-video-icon">🎬</div>
+                        <div>${job.status === 'processing' ? '처리중...' : '비디오를 사용할 수 없습니다'}</div>
+                    </div>
+                `;
+            }
+            
+            // 날짜 및 조회수
+            document.getElementById('upload-date').textContent = formatDate(job.created_at);
+            document.getElementById('view-count').textContent = `조회수 ${Math.floor(Math.random() * 1000)}회`;
+            
+            // 설명
+            const mediaName = job.media_path ? job.media_path.split('/').pop() : 'N/A';
+            let description = '';
+            if (job.note) {
+                description += `${job.note}\n\n`;
+            }
+            description += `📁 원본 파일: ${mediaName}\n`;
+            description += `⏱️ 구간: ${job.start_time ? job.start_time.toFixed(1) : '0'}초 - ${job.end_time ? job.end_time.toFixed(1) : '0'}초\n`;
+            description += `📋 템플릿: ${job.template_number ? `Template ${job.template_number}` : `Type ${job.clipping_type || 1}`}\n`;
+            description += `🏷️ 상태: ${getStatusText(job.status)}`;
+            
+            document.getElementById('description-content').textContent = description;
+            
+            // 자막
+            document.getElementById('text-eng').textContent = job.text_eng || '영문 자막 없음';
+            document.getElementById('text-kor').textContent = job.text_kor || '한글 자막 없음';
+            
+            // 다운로드 버튼
+            if (job.status === 'completed' && job.output_file) {
+                document.getElementById('download-btn').onclick = () => downloadJob(job.id);
+            } else {
+                document.getElementById('download-btn').style.opacity = '0.5';
+                document.getElementById('download-btn').style.cursor = 'not-allowed';
+            }
+            
+            // allJobs 설정
+            window.allJobs = [job];
+        }
+        
+        // 관련 클립 로드
+        async function loadRelatedClips() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/admin/jobs/recent?limit=20`);
+                if (!response.ok) {
+                    throw new Error('Failed to load related clips');
+                }
+                
+                const jobs = await response.json();
+                displayRelatedClips(jobs.filter(job => job.id !== jobId));
+            } catch (error) {
+                console.error('Error loading related clips:', error);
+            }
+        }
+        
+        // 관련 클립 표시
+        function displayRelatedClips(jobs) {
+            const container = document.getElementById('related-videos');
+            container.innerHTML = '';
+            
+            jobs.slice(0, 10).forEach((job, index) => {
+                const mediaName = job.media_path ? job.media_path.split('/').pop() : 'N/A';
+                const duration = job.end_time && job.start_time ? 
+                    Math.floor(job.end_time - job.start_time) : 0;
+                
+                const card = document.createElement('div');
+                card.className = 'video-card';
+                card.onclick = () => window.location.href = `youtube-player.html?id=${job.id}`;
+                
+                // 비디오 썸네일 생성
+                let thumbnailContent = '';
+                if (job.status === 'completed' && job.output_file) {
+                    // 실제 비디오 썸네일
+                    thumbnailContent = `
+                        <video 
+                            src="${API_BASE_URL}/api/video/${job.id}" 
+                            preload="metadata"
+                            onloadedmetadata="this.currentTime = 1"
+                            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+                            style="width: 100%; height: 100%; object-fit: cover;">
+                        </video>
+                        <div class="thumbnail-preview ${job.status}" style="display: none;">
+                            🎬
+                        </div>
+                    `;
+                } else {
+                    // 상태에 따른 아이콘
+                    const icon = job.status === 'processing' ? '⏳' : '🎬';
+                    thumbnailContent = `
+                        <div class="thumbnail-preview ${job.status}">
+                            ${icon}
+                        </div>
+                    `;
+                }
+                
+                card.innerHTML = `
+                    <div class="video-thumbnail">
+                        ${thumbnailContent}
+                        ${duration > 0 ? `<span class="duration">${formatDuration(duration)}</span>` : ''}
+                        <div class="video-progress">
+                            <div class="video-progress-bar" style="width: ${Math.random() * 30}%"></div>
+                        </div>
+                        <button class="video-menu-btn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="video-card-info">
+                        <div class="video-card-title">${job.text_eng || mediaName}</div>
+                        <div class="video-card-channel">
+                            Shadowing Maker
+                            <span class="verified-badge">✓</span>
+                        </div>
+                        <div class="video-card-meta">
+                            <span>조회수 ${Math.floor(Math.random() * 1000)}회</span>
+                            <span>${getRelativeTime(job.created_at)}</span>
+                        </div>
+                    </div>
+                `;
+                
+                container.appendChild(card);
+            });
+            
+            // 더보기 버튼 추가
+            if (jobs.length > 10) {
+                const loadMoreBtn = document.createElement('button');
+                loadMoreBtn.className = 'load-more-btn';
+                loadMoreBtn.textContent = '더보기';
+                loadMoreBtn.onclick = () => {
+                    // 더 많은 비디오 로드 로직
+                    loadMoreClips();
+                };
+                container.appendChild(loadMoreBtn);
+            }
+        }
+        
+        // 더 많은 클립 로드
+        async function loadMoreClips() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/admin/jobs/recent?limit=50`);
+                if (!response.ok) return;
+                
+                const jobs = await response.json();
+                displayRelatedClips(jobs.filter(job => job.id !== jobId));
+            } catch (error) {
+                console.error('Error loading more clips:', error);
+            }
+        }
+        
+        // 시간 포맷
+        function formatDuration(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+        
+        // 상대 시간 표시
+        function getRelativeTime(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diff = now - date;
+            
+            const minutes = Math.floor(diff / 60000);
+            const hours = Math.floor(diff / 3600000);
+            const days = Math.floor(diff / 86400000);
+            
+            if (minutes < 60) return `${minutes}분 전`;
+            if (hours < 24) return `${hours}시간 전`;
+            if (days < 30) return `${days}일 전`;
+            
+            return formatDate(dateString);
+        }
+        
+        // 다운로드
+        function downloadJob(jobId) {
+            window.open(`${API_BASE_URL}/api/download/${jobId}`, '_blank');
+        }
+        
+        // 페이지 로드 시 실행
+        loadJobDetail();
+    </script>
+</body>
+</html>

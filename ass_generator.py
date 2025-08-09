@@ -8,8 +8,8 @@ class ASSGenerator:
         # Default style settings based on README.md specifications
         self.styles = {
             "english": {
-                "font_name": "Noto Sans CJK KR",
-                "font_size": 28,  # As requested
+                "font_name": "Open Sans",
+                "font_size": 36,  # As requested
                 "bold": True,
                 "primary_color": "&HFFFFFF&",  # White
                 "secondary_color": "&H000000FF",
@@ -20,12 +20,12 @@ class ASSGenerator:
                 "alignment": 2,  # Bottom center
                 "margin_l": 0,
                 "margin_r": 0,
-                "margin_v": 50
+                "margin_v": 60
             },
             "korean": {
-                "font_name": "Noto Sans CJK KR",
-                "font_size": 24,  # As requested
-                "bold": True,
+                "font_name": "Noto Sans KR ExtraBold",
+                "font_size": 28,  # As requested
+                "bold": False,
                 "primary_color": "&H00FFFF&",  # Yellow (BGR: 00FFFF)
                 "secondary_color": "&H000000FF",
                 "outline_color": "&H000000&",  # Black outline
@@ -38,9 +38,9 @@ class ASSGenerator:
                 "margin_v": 20
             },
             "note": {
-                "font_name": "Noto Sans CJK KR",
+                "font_name": "Noto Sans KR ExtraBold",
                 "font_size": 24,  # As requested
-                "bold": True,  # Bold for maximum thickness
+                "bold": False,  # ExtraBold font already
                 "primary_color": "&HFFFFFF&",  # White (BGR: FFFFFF)
                 "secondary_color": "&H000000FF",
                 "outline_color": "&H000000&",  # Black outline
@@ -51,6 +51,21 @@ class ASSGenerator:
                 "margin_l": 30,
                 "margin_r": 30,
                 "margin_v": 30
+            },
+            "no_subtitle_notice": {
+                "font_name": "Noto Sans KR ExtraBold",
+                "font_size": 40,
+                "bold": False,
+                "primary_color": "&H00FFFF&",  # Yellow (BGR: 00FFFF)
+                "secondary_color": "&H000000FF",
+                "outline_color": "&H000000&",  # Black outline
+                "back_color": "&H00000000",
+                "outline": 1,  # Standard outline
+                "shadow": 0,
+                "alignment": 7,  # Top left
+                "margin_l": 20,
+                "margin_r": 20,
+                "margin_v": 20
             }
         }
         
@@ -111,13 +126,15 @@ Video Aspect Ratio: 0
 Video Zoom: 0
 Video Position: 0
 WrapStyle: 0
-ScaledBorderAndShadow: yes
+ScaledBorderAndShadow: no
 
 """
         return header
     
     def _generate_styles(self) -> str:
         """Generate styles section"""
+        print(f"[ASS DEBUG] Font settings - English: {self.styles['english']['font_name']}, Bold: {self.styles['english']['bold']}")
+        print(f"[ASS DEBUG] Font settings - Korean: {self.styles['korean']['font_name']}, Bold: {self.styles['korean']['bold']}")
         styles = "[V4+ Styles]\n"
         styles += "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, "
         styles += "Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, "
@@ -125,7 +142,7 @@ ScaledBorderAndShadow: yes
         
         # English style
         eng = self.styles["english"]
-        styles += "Style: English,{},{},{},{},{},{},{},0,0,0,100,100,0,0,1,{},{},{},{},{},{},1\n".format(
+        styles += "Style: English,{},{},{},{},{},{},{},0,0,0,85,100,0,0,1,{},{},{},{},{},{},1\n".format(
             eng["font_name"], eng["font_size"], eng["primary_color"], eng["secondary_color"],
             eng["outline_color"], eng["back_color"], 1 if eng["bold"] else 0,
             eng["outline"], eng["shadow"], eng["alignment"],
@@ -134,7 +151,7 @@ ScaledBorderAndShadow: yes
         
         # Korean style
         kor = self.styles["korean"]
-        styles += "Style: Korean,{},{},{},{},{},{},{},0,0,0,100,100,0,0,1,{},{},{},{},{},{},1\n".format(
+        styles += "Style: Korean,{},{},{},{},{},{},{},0,0,0,85,100,0,0,1,{},{},{},{},{},{},1\n".format(
             kor["font_name"], kor["font_size"], kor["primary_color"], kor["secondary_color"],
             kor["outline_color"], kor["back_color"], 1 if kor["bold"] else 0,
             kor["outline"], kor["shadow"], kor["alignment"],
@@ -143,11 +160,20 @@ ScaledBorderAndShadow: yes
         
         # Note style
         note = self.styles["note"]
-        styles += "Style: Note,{},{},{},{},{},{},{},0,0,0,100,100,0,0,1,{},{},{},{},{},{},1\n".format(
+        styles += "Style: Note,{},{},{},{},{},{},{},0,0,0,85,100,0,0,1,{},{},{},{},{},{},1\n".format(
             note["font_name"], note["font_size"], note["primary_color"], note["secondary_color"],
             note["outline_color"], note["back_color"], 1 if note["bold"] else 0,
             note["outline"], note["shadow"], note["alignment"],
             note["margin_l"], note["margin_r"], note["margin_v"]
+        )
+        
+        # No subtitle notice style
+        no_sub = self.styles["no_subtitle_notice"]
+        styles += "Style: NoSubtitleNotice,{},{},{},{},{},{},{},0,0,0,85,100,0,0,1,{},{},{},{},{},{},1\n".format(
+            no_sub["font_name"], no_sub["font_size"], no_sub["primary_color"], no_sub["secondary_color"],
+            no_sub["outline_color"], no_sub["back_color"], 1 if no_sub["bold"] else 0,
+            no_sub["outline"], no_sub["shadow"], no_sub["alignment"],
+            no_sub["margin_l"], no_sub["margin_r"], no_sub["margin_v"]
         )
         
         styles += "\n"
@@ -227,6 +253,48 @@ ScaledBorderAndShadow: yes
         """Update style settings"""
         if style_name in self.styles:
             self.styles[style_name].update(kwargs)
+    
+    def generate_no_subtitle_notice(self, output_path: str, duration: float = 5.0):
+        """Generate ASS file with '자막 없이 듣기' notice for no-subtitle clips"""
+        notice_subtitle = {
+            'start_time': 0.0,
+            'end_time': duration,
+            'text': '자막 없이 듣기'
+        }
+        
+        with open(output_path, 'w', encoding='utf-8') as f:
+            # Write header
+            f.write(self._generate_header())
+            
+            # Write styles
+            f.write(self._generate_styles())
+            
+            # Write events
+            events = "[Events]\n"
+            events += "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+            
+            start_time = self._format_time(notice_subtitle['start_time'])
+            end_time = self._format_time(notice_subtitle['end_time'])
+            
+            # Add animation effects
+            # \fad(fade_in_ms, fade_out_ms) - fade effect
+            # \move(x1,y1,x2,y2,start_ms,end_ms) - movement effect
+            # \t(start_ms,end_ms,\fscx120\fscy120) - scale animation
+            
+            # Option 1: Fade in/out with slight movement (current)
+            # animated_text = "{\\fad(500,500)}" + notice_subtitle['text']
+            
+            # Option 2: Slide in from left with fade
+            # animated_text = "{\\fad(300,300)\\move(-100,20,20,20,0,300)}" + notice_subtitle['text']
+            
+            # Option 3: Scale up with fade (bounce effect)
+            animated_text = "{\\fad(400,400)\\t(0,400,\\fscx110\\fscy110)\\t(400,600,\\fscx100\\fscy100)}" + notice_subtitle['text']
+            
+            events += "Dialogue: 0,{},{},NoSubtitleNotice,,0,0,0,,{}\n".format(
+                start_time, end_time, animated_text
+            )
+            
+            f.write(events)
 
 
 if __name__ == "__main__":
