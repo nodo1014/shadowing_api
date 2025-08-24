@@ -35,7 +35,7 @@
           "subtitle_type": null
         }
       ],
-      "gap_duration": 1.5
+      "gap_duration": 0.5
     },
     "template_2": {
       "name": "Keyword Focus",
@@ -60,7 +60,7 @@
           "subtitle_type": "full"
         }
       ],
-      "gap_duration": 1.5
+      "gap_duration": 0.5
     },
     "template_3": {
       "name": "Progressive Learning",
@@ -85,7 +85,109 @@
           "subtitle_type": "full"
         }
       ],
-      "gap_duration": 2.0
+      "gap_duration": 0.5
+    },
+    "template_1_shorts": {
+      "name": "Progressive Learning (Shorts)",
+      "description": "무자막 1회, 블랭크 1회, 블랭크+한글 1회, 영한자막 1회, 무자막 1회 (쇼츠용)",
+      "clips": [
+        {
+          "subtitle_mode": "no_subtitle",
+          "folder_name": "1_nosub",
+          "count": 1,
+          "subtitle_type": null
+        },
+        {
+          "subtitle_mode": "blank_subtitle",
+          "folder_name": "2_blank",
+          "count": 1,
+          "subtitle_type": "blank"
+        },
+        {
+          "subtitle_mode": "blank_with_korean",
+          "folder_name": "3_blank_kor",
+          "count": 1,
+          "subtitle_type": "blank_korean"
+        },
+        {
+          "subtitle_mode": "both_subtitle",
+          "folder_name": "4_both",
+          "count": 1,
+          "subtitle_type": "full"
+        },
+        {
+          "subtitle_mode": "no_subtitle",
+          "folder_name": "5_nosub",
+          "count": 1,
+          "subtitle_type": null
+        }
+      ],
+      "gap_duration": 0.5,
+      "video_settings": {
+        "width": 1080,
+        "height": 1920,
+        "aspect_ratio": "9:16"
+      }
+    },
+    "template_2_shorts": {
+      "name": "Keyword Focus (Shorts)",
+      "description": "무자막 1회, 블랭크 1회, 영한+키워드강조 2회 (쇼츠용)",
+      "clips": [
+        {
+          "subtitle_mode": "no_subtitle",
+          "folder_name": "1_nosub",
+          "count": 1,
+          "subtitle_type": null
+        },
+        {
+          "subtitle_mode": "blank_subtitle",
+          "folder_name": "2_blank",
+          "count": 1,
+          "subtitle_type": "blank"
+        },
+        {
+          "subtitle_mode": "full_subtitle",
+          "folder_name": "4_full",
+          "count": 2,
+          "subtitle_type": "full"
+        }
+      ],
+      "gap_duration": 0.5,
+      "video_settings": {
+        "width": 1080,
+        "height": 1920,
+        "aspect_ratio": "9:16"
+      }
+    },
+    "template_3_shorts": {
+      "name": "Progressive Learning (Shorts)",
+      "description": "무자막 2회, 블랭크+한글 2회, 영한자막 2회 (쇼츠용)",
+      "clips": [
+        {
+          "subtitle_mode": "no_subtitle",
+          "folder_name": "1_nosub",
+          "count": 2,
+          "subtitle_type": null
+        },
+        {
+          "subtitle_mode": "blank_with_korean",
+          "folder_name": "2_blank_kor",
+          "count": 2,
+          "subtitle_type": "blank_korean"
+        },
+        {
+          "subtitle_mode": "both_subtitle",
+          "folder_name": "3_both",
+          "count": 2,
+          "subtitle_type": "full"
+        }
+      ],
+      "gap_duration": 0.5,
+      "video_settings": {
+        "width": 1080,
+        "height": 1920,
+        "aspect_ratio": "9:16"
+      }
     }
   }
 }

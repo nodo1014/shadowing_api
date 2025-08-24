@@ -20,7 +20,7 @@ class VideoEncoder:
             "no_subtitle": {
                 "video_codec": "libx264",
                 "preset": "medium",  # 품질/속도 균형: ultrafast -> medium
-                "crf": "16",  # 품질 개선: 16 -> 18 (적절한 품질/파일크기 균형)
+                "crf": "20",  # 좋은 품질/파일크기 균형
                 "profile": "high",
                 "level": "4.1",
                 "pix_fmt": "yuv420p",
@@ -35,7 +35,7 @@ class VideoEncoder:
             "with_subtitle": {
                 "video_codec": "libx264",
                 "preset": "medium",  # 품질/속도 균형: ultrafast -> medium
-                "crf": "16",  # 동일한 품질 유지
+                "crf": "20",  # 좋은 품질/파일크기 균형
                 "profile": "high",
                 "level": "4.1",
                 "pix_fmt": "yuv420p",
@@ -349,6 +349,37 @@ class VideoEncoder:
         # Video filter for subtitles and scaling with aspect ratio preservation
         # Removed setsar=1 to preserve original pixel aspect ratio
         video_filter = f"scale={settings['width']}:{settings['height']}:force_original_aspect_ratio=decrease,pad={settings['width']}:{settings['height']}:(ow-iw)/2:(oh-ih)/2:black"
+        
+        # Add text overlays for non-shorts clips
+        if not hasattr(self, '_is_shorts_encoding'):
+            # Add "무자막 모드" text for no-subtitle clips
+            if not subtitle_file:
+                # Add drawtext filter for "무자막 모드" in top-left with fade in
+                video_filter += ",drawtext=text='무자막 모드':fontfile=/home/kang/.fonts/TmonMonsori.ttf:fontsize=70:fontcolor=white@0.8:borderw=3:bordercolor=black:x=80:y=80:alpha='if(lt(t,0.5),t/0.5,1)'"
+            
+            # Add progress bar at top if available
+            if hasattr(self, '_current_clip_index') and hasattr(self, '_total_clips'):
+                # Progress bar dimensions
+                bar_width = 300
+                bar_height = 6
+                bar_x = "w-380"  # 80px from right edge
+                bar_y = 80
+                
+                # Calculate progress
+                progress = self._current_clip_index / self._total_clips
+                filled_width = int(bar_width * progress)
+                
+                # Draw background bar (gray)
+                video_filter += f",drawbox=x={bar_x}:y={bar_y}:w={bar_width}:h={bar_height}:color=gray@0.5:t=fill"
+                
+                # Draw progress bar (white)
+                if filled_width > 0:
+                    video_filter += f",drawbox=x={bar_x}:y={bar_y}:w={filled_width}:h={bar_height}:color=white@0.8:t=fill"
+                
+                # Add text below bar
+                progress_text = f"{self._current_clip_index}/{self._total_clips}"
+                video_filter += f",drawtext=text='{progress_text}':fontfile=/home/kang/.fonts/TmonMonsori.ttf:fontsize=40:fontcolor=white@0.7:borderw=2:bordercolor=black:x=w-380+({bar_width}-tw)/2:y={bar_y+15}"
+        
         if subtitle_file:
             # Use absolute path and escape special characters for FFmpeg filter
             abs_path = os.path.abspath(subtitle_file)

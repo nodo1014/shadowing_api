@@ -256,7 +256,7 @@ class ClippingRequest(BaseModel):
     text_kor: str = Field(..., description="한국어 번역")
     note: Optional[str] = Field("", description="문장 설명")
     keywords: Optional[List[str]] = Field([], description="핵심 키워드 리스트 (Type 2에서 사용)")
-    template_number: int = Field(1, ge=1, le=3, description="템플릿 번호 (1, 2, 또는 3)")
+    template_number: int = Field(1, ge=1, le=13, description="템플릿 번호 (1-3: 일반, 11-13: 쇼츠)")
     individual_clips: bool = Field(True, description="개별 클립 저장 여부")
 
 
@@ -264,7 +264,7 @@ class BatchClippingRequest(BaseModel):
     """배치 클리핑 요청 모델"""
     media_path: str = Field(..., description="미디어 파일 경로")
     clips: List[ClipData] = Field(..., description="클립 데이터 리스트")
-    template_number: int = Field(1, ge=1, le=3, description="템플릿 번호 (1, 2, 또는 3)")
+    template_number: int = Field(1, ge=1, le=13, description="템플릿 번호 (1-3: 일반, 11-13: 쇼츠)")
     individual_clips: bool = Field(True, description="개별 클립 저장 여부")
     
     @validator('media_path')
@@ -573,6 +573,33 @@ async def process_clipping(job_id: str, request: ClippingRequest):
         if request.template_number in [2, 3]:
             text_eng_blank = generate_blank_text(request.text_eng, request.keywords)
         
+        # 쇼츠용 줄바꿈 처리 함수
+        def add_line_breaks(text: str, max_chars: int = 20) -> str:
+            """긴 텍스트에 줄바꿈 추가"""
+            if not text or len(text) <= max_chars:
+                return text
+            
+            words = text.split()
+            lines = []
+            current_line = []
+            current_length = 0
+            
+            for word in words:
+                word_length = len(word)
+                if current_length + word_length + len(current_line) > max_chars:
+                    if current_line:
+                        lines.append(' '.join(current_line))
+                        current_line = [word]
+                        current_length = word_length
+                else:
+                    current_line.append(word)
+                    current_length += word_length
+            
+            if current_line:
+                lines.append(' '.join(current_line))
+            
+            return '\\n'.join(lines)
+        
         # 자막 데이터 준비
         subtitle_data = {
             'start_time': 0,  # 클립 내에서는 0부터 시작
@@ -582,6 +609,10 @@ async def process_clipping(job_id: str, request: ClippingRequest):
             'note': request.note,
             'eng': request.text_eng,  # 호환성
             'kor': request.text_kor,   # 호환성
+            'eng_text_l': request.text_eng,  # Long version (일반)
+            'eng_text_s': add_line_breaks(request.text_eng, 20),  # Short version (쇼츠)
+            'kor_text_l': request.text_kor,  # Long version (일반)
+            'kor_text_s': add_line_breaks(request.text_kor, 15),  # Short version (쇼츠)
             'keywords': request.keywords,  # Type 2를 위한 키워드
             'template_number': request.template_number,  # 클리핑 타입 전달
             'text_eng_blank': text_eng_blank  # Type 2를 위한 blank 텍스트
@@ -602,8 +633,17 @@ async def process_clipping(job_id: str, request: ClippingRequest):
         filename = f"{timestamp}_tp_{request.template_number}.mp4"
         output_path = job_dir / filename
         
-        # 템플릿 이름 결정
-        template_name = f"template_{request.template_number}"
+        # 템플릿 이름 결정 (11, 12, 13은 쇼츠 버전으로 매핑)
+        template_mapping = {
+            11: "template_1_shorts",
+            12: "template_2_shorts", 
+            13: "template_3_shorts"
+        }
+        
+        if request.template_number in template_mapping:
+            template_name = template_mapping[request.template_number]
+        else:
+            template_name = f"template_{request.template_number}"
         
         # 템플릿을 사용하여 비디오 생성
         success = template_encoder.create_from_template(
@@ -912,6 +952,37 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
             if request.template_number in [2, 3]:
                 text_eng_blank = generate_blank_text(clip_data.text_eng, clip_data.keywords)
             
+            # 쇼츠용 줄바꿈 처리 함수
+            def add_line_breaks(text: str, max_chars: int = 20) -> str:
+                """긴 텍스트에 줄바꿈 추가"""
+                if not text or len(text) <= max_chars:
+                    return text
+                
+                words = text.split()
+                lines = []
+                current_line = []
+                current_length = 0
+                
+                for word in words:
+                    word_length = len(word)
+                    if current_length + word_length + len(current_line) > max_chars:
+                        if current_line:
+                            lines.append(' '.join(current_line))
+                            current_line = [word]
+                            current_length = word_length
+                        else:
+                            lines.append(word)
+                            current_line = []
+                            current_length = 0
+                    else:
+                        current_line.append(word)
+                        current_length += word_length
+                
+                if current_line:
+                    lines.append(' '.join(current_line))
+                
+                return '\\N'.join(lines)
+            
             # 자막 데이터
             subtitle_data = {
                 'start_time': 0,
@@ -921,6 +992,10 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
                 'note': clip_data.note,
                 'eng': clip_data.text_eng,
                 'kor': clip_data.text_kor,
+                'eng_text_l': clip_data.text_eng,  # Long version (일반)
+                'eng_text_s': add_line_breaks(clip_data.text_eng, 20),  # Short version (쇼츠)
+                'kor_text_l': clip_data.text_kor,  # Long version (일반)
+                'kor_text_s': add_line_breaks(clip_data.text_kor, 15),  # Short version (쇼츠)
                 'keywords': clip_data.keywords,  # Type 2를 위한 키워드
                 'template_number': request.template_number,  # 클리핑 타입 전달
                 'text_eng_blank': text_eng_blank  # Type 2를 위한 blank 텍스트
@@ -934,7 +1009,18 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
             
             # 템플릿 기반 인코더 사용
             template_encoder = TemplateVideoEncoder()
-            template_name = f"template_{request.template_number}"
+            
+            # 템플릿 이름 결정 (11, 12, 13은 쇼츠 버전으로 매핑)
+            template_mapping = {
+                11: "template_1_shorts",
+                12: "template_2_shorts", 
+                13: "template_3_shorts"
+            }
+            
+            if request.template_number in template_mapping:
+                template_name = template_mapping[request.template_number]
+            else:
+                template_name = f"template_{request.template_number}"
             
             # 템플릿을 사용하여 비디오 생성
             success = template_encoder.create_from_template(

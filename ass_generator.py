@@ -20,7 +20,7 @@ class ASSGenerator:
                 "alignment": 2,  # Bottom center
                 "margin_l": 0,
                 "margin_r": 0,
-                "margin_v": 120  # FHD 기준 하단 여백
+                "margin_v": 170  # FHD 기준 하단 여백 (50px 위로)
             },
             "korean": {
                 "font_name": "Noto Sans CJK KR",
@@ -35,7 +35,7 @@ class ASSGenerator:
                 "alignment": 2,  # Bottom center
                 "margin_l": 0,
                 "margin_r": 0,
-                "margin_v": 50  # FHD 기준 하단 여백
+                "margin_v": 140  # FHD 기준 하단 여백 (영어와 30px 간격)
             },
             "note": {
                 "font_name": "Noto Sans CJK KR",
@@ -58,12 +58,13 @@ class ASSGenerator:
         self.width = 0
         self.height = 0
         
-    def generate_ass(self, subtitles: List[Dict], output_path: str, video_width: int = None, video_height: int = None, time_offset: float = 0.0, clip_duration: float = None):
+    def generate_ass(self, subtitles: List[Dict], output_path: str, video_width: int = None, video_height: int = None, time_offset: float = 0.0, clip_duration: float = None, is_shorts: bool = False):
         """Generate ASS subtitle file from subtitle data"""
         # Keep resolution at 0 for better scaling regardless of video dimensions
         # This allows the subtitle renderer to scale fonts appropriately
         # time_offset: subtract this value from all subtitle times (for clipped videos)
         # clip_duration: if specified, show subtitles for the entire clip duration
+        # is_shorts: if True, adjust positions for YouTube Shorts format
         
         # Apply time offset to subtitles
         adjusted_subtitles = []
@@ -94,7 +95,7 @@ class ASSGenerator:
             f.write(self._generate_header())
             
             # Write styles
-            f.write(self._generate_styles())
+            f.write(self._generate_styles(is_shorts))
             
             # Write events
             f.write(self._generate_events(adjusted_subtitles))
@@ -118,8 +119,25 @@ ScaledBorderAndShadow: yes
 """
         return header
     
-    def _generate_styles(self) -> str:
+    def _generate_styles(self, is_shorts: bool = False) -> str:
         """Generate styles section"""
+        
+        # 쇼츠용 위치 및 크기 조정
+        if is_shorts:
+            # 정사각형 영역 아래 더 많은 여백
+            # 1080x1920에서 중앙 1080x1080 영역의 하단은 1510px
+            # 유튜브 쇼츠 UI 고려하여 더 아래로 배치
+            eng_margin_v = 360  # 화면 하단에서 360px 위 (영어 자막, 30px 더 위로)
+            kor_margin_v = 220  # 화면 하단에서 220px 위 (한글 자막, 140px 간격)
+            # 쇼츠용 작은 폰트 크기 (모바일 화면에 적합)
+            eng_font_size = 60  # 영어 폰트 크기 축소
+            kor_font_size = 54  # 한글 폰트 크기 축소
+        else:
+            # 일반 영상용 기본값
+            eng_margin_v = self.styles["english"]["margin_v"]
+            kor_margin_v = self.styles["korean"]["margin_v"]
+            eng_font_size = self.styles["english"]["font_size"]
+            kor_font_size = self.styles["korean"]["font_size"]
         styles = "[V4+ Styles]\n"
         styles += "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, "
         styles += "Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, "
@@ -128,19 +146,19 @@ ScaledBorderAndShadow: yes
         # English style
         eng = self.styles["english"]
         styles += "Style: English,{},{},{},{},{},{},{},0,0,0,100,100,0,0,1,{},{},{},{},{},{},1\n".format(
-            eng["font_name"], eng["font_size"], eng["primary_color"], eng["secondary_color"],
+            eng["font_name"], eng_font_size, eng["primary_color"], eng["secondary_color"],
             eng["outline_color"], eng["back_color"], 1 if eng["bold"] else 0,
             eng["outline"], eng["shadow"], eng["alignment"],
-            eng["margin_l"], eng["margin_r"], eng["margin_v"]
+            eng["margin_l"], eng["margin_r"], eng_margin_v
         )
         
         # Korean style
         kor = self.styles["korean"]
         styles += "Style: Korean,{},{},{},{},{},{},{},0,0,0,100,100,0,0,1,{},{},{},{},{},{},1\n".format(
-            kor["font_name"], kor["font_size"], kor["primary_color"], kor["secondary_color"],
+            kor["font_name"], kor_font_size, kor["primary_color"], kor["secondary_color"],
             kor["outline_color"], kor["back_color"], 1 if kor["bold"] else 0,
             kor["outline"], kor["shadow"], kor["alignment"],
-            kor["margin_l"], kor["margin_r"], kor["margin_v"]
+            kor["margin_l"], kor["margin_r"], kor_margin_v
         )
         
         # Note style

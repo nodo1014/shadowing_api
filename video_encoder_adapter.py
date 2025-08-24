@@ -106,9 +106,15 @@ class VideoEncoder(_VideoEncoder):
     
     def _concatenate_clips(self, clip_paths, output_path, gap_duration=0.5):
         """Concatenate clips (backward compatible)"""
-        from shadowing_maker.core.video.ffmpeg_utils import concatenate_videos
+        # Use parent class implementation for freeze frame support
         logger.debug(f"[DEBUG] _concatenate_clips called with {len(clip_paths)} clips, gap_duration={gap_duration}")
-        return concatenate_videos(clip_paths, output_path, gap_duration)
+        # Check if parent class has the method
+        if hasattr(super(), '_concatenate_clips'):
+            return super()._concatenate_clips(clip_paths, output_path, gap_duration)
+        else:
+            # Fallback to ffmpeg_utils if parent doesn't have it
+            from shadowing_maker.core.video.ffmpeg_utils import concatenate_videos
+            return concatenate_videos(clip_paths, output_path, gap_duration)
     
     def _run_ffmpeg_with_timeout(self, cmd, timeout=None):
         """Run FFmpeg with timeout (backward compatible)"""

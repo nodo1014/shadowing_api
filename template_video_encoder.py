@@ -46,6 +46,9 @@ class TemplateVideoEncoder(VideoEncoder):
         template = self.templates[template_name]
         logger.info(f"Using template: {template['name']} - {template['description']}")
         
+        # 현재 템플릿 이름 저장 (쇼츠 여부 확인용)
+        self._current_template_name = template_name
+        
         # Calculate padded times
         if start_time is not None and end_time is not None:
             padded_start = max(0, start_time - padding_before)
@@ -72,14 +75,23 @@ class TemplateVideoEncoder(VideoEncoder):
         try:
             clip_number = Path(output_path).stem.split('_')[-1] if '_' in Path(output_path).stem else '0000'
             
+            # 전체 클립 수 계산
+            total_clips = sum(clip['count'] for clip in template['clips'])
+            current_clip_index = 0
+            
             for clip_config in template['clips']:
                 for i in range(clip_config['count']):
+                    current_clip_index += 1
                     temp_file = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
                     temp_clips.append(temp_file.name)
                     temp_file.close()
                     
                     # Get subtitle file for this clip
                     subtitle_file = subtitle_files.get(clip_config['subtitle_type'])
+                    
+                    # Store progress info for encoding
+                    self._current_clip_index = current_clip_index
+                    self._total_clips = total_clips
                     
                     # Check if this clip should use still frame mode
                     video_mode = clip_config.get('video_mode', 'normal')
@@ -109,6 +121,7 @@ class TemplateVideoEncoder(VideoEncoder):
             
             # Concatenate clips with gaps
             gap_duration = template.get('gap_duration', 1.5)
+            logger.info(f"Using gap_duration from template '{template_name}': {gap_duration} seconds")
             if not self._concatenate_clips(temp_clips, output_path, gap_duration):
                 raise Exception("Failed to concatenate clips")
             
@@ -151,6 +164,11 @@ class TemplateVideoEncoder(VideoEncoder):
             subtitle_data['end_time'] = clip_duration if clip_duration else 5.0
             
         # 효율적인 자막 파이프라인 사용
+        # 쇼츠 템플릿인 경우 줄바꿈 설정 추가
+        is_shorts = '_shorts' in template_name
+        if is_shorts:
+            subtitle_data['max_chars_per_line'] = 15  # 쇼츠용 짧은 줄
+            subtitle_data['is_shorts'] = True
         pipeline = SubtitlePipeline(subtitle_data)
         
         # Map template subtitle types to pipeline types
@@ -254,7 +272,7 @@ class TemplateVideoEncoder(VideoEncoder):
             cmd.extend([
                 '-c:v', 'libx264',
                 '-preset', 'medium',
-                '-crf', '16',
+                '-crf', '20',
                 '-profile:v', 'high',
                 '-level', '4.1',
                 '-pix_fmt', 'yuv420p',
@@ -299,3 +317,90 @@ class TemplateVideoEncoder(VideoEncoder):
         except Exception as e:
             logger.error(f"Error creating still frame clip: {e}", exc_info=True)
             return False
+    
+    def _encode_clip(self, input_path: str, output_path: str,
+                    start_time: float = None, duration: float = None,
+                    subtitle_file: str = None) -> bool:
+        """비디오 클립 인코딩 - 쇼츠 템플릿일 경우 크롭 적용"""
+        
+        # 현재 템플릿이 쇼츠인지 확인
+        current_template = getattr(self, '_current_template_name', '')
+        is_shorts = '_shorts' in current_template
+        
+        # 쇼츠 여부를 부모 클래스에 전달
+        if is_shorts:
+            self._is_shorts_encoding = True
+        
+        if is_shorts:
+            # 쇼츠용 크롭 적용
+            return self._encode_clip_with_crop(input_path, output_path, 
+                                             start_time, duration, 
+                                             subtitle_file, 
+                                             width=1080, height=1920)
+        else:
+            # 일반 인코딩
+            return super()._encode_clip(input_path, output_path, 
+                                      start_time, duration, 
+                                      subtitle_file)
+    
+    def _encode_clip_with_crop(self, input_path: str, output_path: str,
+                             start_time: float = None, duration: float = None,
+                             subtitle_file: str = None, 
+                             width: int = 1080, height: int = 1920) -> bool:
+        """크롭을 적용한 클립 인코딩 (쇼츠용)"""
+        
+        cmd = ['ffmpeg', '-y']
+        
+        if start_time is not None:
+            cmd.extend(['-ss', str(start_time)])
+        
+        cmd.extend(['-i', input_path])
+        
+        if duration is not None:
+            cmd.extend(['-t', str(duration)])
+        
+        # 템플릿 이름에 따라 다른 크롭 방식 적용
+        current_template = getattr(self, '_current_template_name', '')
+        
+        if 'template_1_shorts' in current_template:
+            # 쇼츠 1: 원본 100% 정사각형 크롭
+            video_filter = f"crop='min(iw,ih):min(iw,ih)',scale=1080:1080,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black"
+        elif 'template_2_shorts' in current_template:
+            # 쇼츠 2: 좌우 15%씩 크롭, 원본 높이 유지
+            video_filter = f"crop='iw*0.7:ih:iw*0.15:0',scale='if(gt(iw,1080),1080,iw)':'if(gt(iw,1080),ih*1080/iw,ih)',pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black"
+        elif 'template_3_shorts' in current_template:
+            # 쇼츠 3: 원본 크기 그대로 축소하여 전체 화면 보이기
+            video_filter = f"scale='if(gt(iw/ih,{width}/{height}),{width},-1)':'if(gt(iw/ih,{width}/{height}),-1,{height})',pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black"
+        else:
+            # 기본값: 원본 100% 정사각형 크롭
+            video_filter = f"crop='min(iw,ih):min(iw,ih)',scale=1080:1080,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black"
+        
+        if subtitle_file and os.path.exists(subtitle_file):
+            subtitle_path = subtitle_file.replace('\\', '/').replace("'", "'\\''")
+            video_filter += f",ass='{subtitle_path}'"
+        
+        cmd.extend(['-vf', video_filter])
+        
+        # 인코딩 설정 (일반 인코딩과 동일하게 통일)
+        cmd.extend([
+            '-c:v', 'libx264',
+            '-preset', 'medium',
+            '-crf', '16',
+            '-profile:v', 'high',
+            '-level', '4.1',
+            '-pix_fmt', 'yuv420p',
+            '-tune', 'film',
+            '-x264opts', 'keyint=240:min-keyint=24:scenecut=40',
+            '-c:a', 'aac',
+            '-b:a', '192k',
+            '-movflags', '+faststart',
+            output_path
+        ])
+        
+        returncode, stdout, stderr = self._run_ffmpeg_with_timeout(cmd)
+        
+        if returncode != 0:
+            logger.error(f"FFmpeg error: {stderr}")
+            return False
+        
+        return True

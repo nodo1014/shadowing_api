@@ -69,12 +69,22 @@ class SubtitlePipeline:
         self._blank_text_cache = {}
         
         # 기본 데이터 검증
-        self.english = base_subtitle_data.get('english', '')
-        self.korean = base_subtitle_data.get('korean', '')
+        # 쇼츠 여부 확인하고 적절한 텍스트 선택
+        is_shorts = base_subtitle_data.get('is_shorts', False)
+        if is_shorts:
+            # 쇼츠용 짧은 버전 우선 사용
+            self.english = base_subtitle_data.get('eng_text_s', base_subtitle_data.get('english', ''))
+            self.korean = base_subtitle_data.get('kor_text_s', base_subtitle_data.get('korean', ''))
+        else:
+            # 일반용 긴 버전 사용
+            self.english = base_subtitle_data.get('eng_text_l', base_subtitle_data.get('english', ''))
+            self.korean = base_subtitle_data.get('kor_text_l', base_subtitle_data.get('korean', ''))
+        
         self.note = base_subtitle_data.get('note', '')
         self.keywords = base_subtitle_data.get('keywords', [])
         self.start_time = base_subtitle_data.get('start_time', 0)
         self.end_time = base_subtitle_data.get('end_time', 0)
+        self.is_shorts = is_shorts  # 쇼츠 여부 저장
         
     def get_variant(self, variant_type: SubtitleType) -> SubtitleVariant:
         """자막 변형 가져오기 (캐싱 적용)"""
@@ -187,8 +197,8 @@ class SubtitlePipeline:
         """메모리에서 ASS 콘텐츠 생성"""
         # ASS 헤더
         content = self._ass_generator._generate_header()
-        # ASS 스타일
-        content += self._ass_generator._generate_styles()
+        # ASS 스타일 (쇼츠 여부 전달)
+        content += self._ass_generator._generate_styles(self.is_shorts)
         # ASS 이벤트
         
         # 타이밍 조정
