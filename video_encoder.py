@@ -7,6 +7,7 @@ import time
 import logging
 from pathlib import Path
 from typing import List, Dict, Optional
+from subtitle_pipeline import SubtitlePipeline, SubtitleType
 
 logger = logging.getLogger(__name__)
 
@@ -345,8 +346,9 @@ class VideoEncoder:
         if duration is not None:
             cmd.extend(['-t', str(duration)])
         
-        # Video filter for subtitles and scaling
-        video_filter = f"scale={settings['width']}:{settings['height']}"
+        # Video filter for subtitles and scaling with aspect ratio preservation
+        # Removed setsar=1 to preserve original pixel aspect ratio
+        video_filter = f"scale={settings['width']}:{settings['height']}:force_original_aspect_ratio=decrease,pad={settings['width']}:{settings['height']}:(ow-iw)/2:(oh-ih)/2:black"
         if subtitle_file:
             # Use absolute path and escape special characters for FFmpeg filter
             abs_path = os.path.abspath(subtitle_file)
@@ -356,7 +358,7 @@ class VideoEncoder:
             escaped_path = abs_path.replace('\\', '/').replace(':', '\\:')
             escaped_path = escaped_path.replace('[', '\\[').replace(']', '\\]')
             escaped_path = escaped_path.replace(',', '\\,').replace("'", "\\'")
-            video_filter = f"scale={settings['width']}:{settings['height']},ass={escaped_path}"
+            video_filter = f"scale={settings['width']}:{settings['height']}:force_original_aspect_ratio=decrease,pad={settings['width']}:{settings['height']}:(ow-iw)/2:(oh-ih)/2:black,ass={escaped_path}"
         
         cmd.extend(['-vf', video_filter])
         
@@ -732,7 +734,7 @@ class VideoEncoder:
             ass_escaped = os.path.abspath(ass_path).replace(':', '\\:').replace('[', '\\[').replace(']', '\\]').replace('(', '\\(').replace(')', '\\)')
             
             filter_complex = f"""
-            [0:v]scale={settings['width']}:{settings['height']}[v_scaled];
+            [0:v]scale={settings['width']}:{settings['height']}:force_original_aspect_ratio=decrease,pad={settings['width']}:{settings['height']}:(ow-iw)/2:(oh-ih)/2:black[v_scaled];
             [v_scaled]ass={ass_escaped}[v_sub];
             [v_scaled][v_sub][v_sub][v_sub]concat=n=4:v=1:a=0[v_out];
             [0:a][0:a][0:a][0:a]concat=n=4:v=0:a=1[a_out];

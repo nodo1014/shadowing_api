@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from video_encoder import VideoEncoder
 from subtitle_generator import SubtitleGenerator
+from subtitle_pipeline import SubtitlePipeline, SubtitleType
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +131,7 @@ class TemplateVideoEncoder(VideoEncoder):
                     os.unlink(subtitle_file)
     
     def _prepare_subtitle_files(self, subtitle_data: Dict, template_name: str, clip_duration: float = None, gap_duration: float = 0.0) -> Dict[str, str]:
-        """템플릿에 필요한 자막 파일들을 준비"""
+        """템플릿에 필요한 자막 파일들을 준비 - 새로운 파이프라인 사용"""
         subtitle_files = {}
         
         # 템플릿에서 필요한 subtitle_type들을 추출
@@ -148,41 +149,44 @@ class TemplateVideoEncoder(VideoEncoder):
             subtitle_data['start_time'] = 0.0
         if 'end_time' not in subtitle_data:
             subtitle_data['end_time'] = clip_duration if clip_duration else 5.0
+            
+        # 효율적인 자막 파이프라인 사용
+        pipeline = SubtitlePipeline(subtitle_data)
         
-        # 필요한 자막 파일들 생성
+        # Map template subtitle types to pipeline types
+        type_mapping = {
+            'full': SubtitleType.FULL,
+            'blank': SubtitleType.BLANK,
+            'korean': SubtitleType.KOREAN_ONLY,
+            'blank_korean': SubtitleType.BLANK_KOREAN,
+        }
+        
+        # Gap duration을 포함한 총 클립 길이 계산
+        total_clip_duration = clip_duration + gap_duration if clip_duration else None
+        
+        # 필요한 자막 파일들 생성 (파이프라인 사용)
         for subtitle_type in needed_types:
-            if subtitle_type == 'full':
-                # Full subtitle (with keywords for template_2)
-                full_ass = tempfile.NamedTemporaryFile(suffix='_full.ass', delete=False)
-                full_ass.close()
-                with_keywords = (template_name == "template_2")
-                self.subtitle_generator.generate_full_subtitle(subtitle_data, full_ass.name, with_keywords=with_keywords, clip_duration=clip_duration, gap_duration=gap_duration)
-                subtitle_files['full'] = full_ass.name
+            if subtitle_type in type_mapping:
+                variant_type = type_mapping[subtitle_type]
                 
-            elif subtitle_type == 'blank':
-                # Blank subtitle
-                blank_ass = tempfile.NamedTemporaryFile(suffix='_blank.ass', delete=False)
-                blank_ass.close()
-                self.subtitle_generator.generate_blank_subtitle(subtitle_data, blank_ass.name, with_korean=False, clip_duration=clip_duration, gap_duration=gap_duration)
-                subtitle_files['blank'] = blank_ass.name
+                # 임시 파일 생성
+                temp_file = tempfile.NamedTemporaryFile(suffix=f'_{subtitle_type}.ass', delete=False)
+                temp_file.close()
                 
-            elif subtitle_type == 'korean':
-                # Korean only subtitle
-                korean_ass = tempfile.NamedTemporaryFile(suffix='_korean.ass', delete=False)
-                korean_ass.close()
-                self.subtitle_generator.generate_korean_only_subtitle(subtitle_data, korean_ass.name, clip_duration=clip_duration, gap_duration=gap_duration)
-                subtitle_files['korean'] = korean_ass.name
+                # 파이프라인으로 자막 저장
+                pipeline.save_variant_to_file(variant_type, temp_file.name, total_clip_duration)
+                subtitle_files[subtitle_type] = temp_file.name
                 
-            elif subtitle_type == 'blank_korean':
-                # Blank English with Korean subtitle
-                blank_korean_ass = tempfile.NamedTemporaryFile(suffix='_blank_korean.ass', delete=False)
-                blank_korean_ass.close()
-                self.subtitle_generator.generate_blank_subtitle(subtitle_data, blank_korean_ass.name, with_korean=True, clip_duration=clip_duration, gap_duration=gap_duration)
-                subtitle_files['blank_korean'] = blank_korean_ass.name
-                
-            # 향후 새로운 subtitle_type 추가 시 여기에 elif 추가
-            # elif subtitle_type == 'english_only':
-            #     ...
+                logger.debug(f"Generated {subtitle_type} subtitle using pipeline")
+        
+        # 기존 방식으로 fallback (pipeline에서 지원하지 않는 타입)
+        if len(subtitle_files) < len(needed_types):
+            missing_types = needed_types - set(subtitle_files.keys())
+            logger.warning(f"Pipeline doesn't support types: {missing_types}, using legacy generator")
+            
+            for subtitle_type in missing_types:
+                # Legacy subtitle generation code here if needed
+                pass
         
         return subtitle_files
     

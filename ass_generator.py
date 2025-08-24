@@ -26,7 +26,7 @@ class ASSGenerator:
                 "font_name": "Noto Sans CJK KR",
                 "font_size": 24,  # As requested
                 "bold": True,
-                "primary_color": "&H00FFFF&",  # Yellow (BGR: 00FFFF)
+                "primary_color": "&H00D7FF&",  # Gold (BGR: 00D7FF = FFD700 in RGB)
                 "secondary_color": "&H000000FF",
                 "outline_color": "&H000000&",  # Black outline
                 "back_color": "&H00000000",

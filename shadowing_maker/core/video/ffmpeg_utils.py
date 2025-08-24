@@ -164,7 +164,7 @@ def add_subtitles(
     subtitle_escaped = subtitle_escaped.replace('[', '\\[').replace(']', '\\]')
     subtitle_escaped = subtitle_escaped.replace(',', '\\,').replace("'", "\\'")
     
-    video_filter = f"scale={width}:{height},ass={subtitle_escaped}"
+    video_filter = f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1,ass={subtitle_escaped}"
     
     cmd = [
         'ffmpeg', '-y',

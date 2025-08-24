@@ -276,7 +276,7 @@ class BatchClippingRequest(BaseModel):
         return v
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "media_path": "/mnt/qnap/media_eng/indexed_media/sample.mp4",
                 "start_time": 10.5,
