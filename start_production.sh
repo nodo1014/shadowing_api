@@ -11,6 +11,14 @@ fi
 mkdir -p ${OUTPUT_DIR:-output}
 mkdir -p logs
 
+# Check and kill existing process on port 8080
+if lsof -ti:${PORT:-8080} > /dev/null 2>&1; then
+    echo "Found existing process on port ${PORT:-8080}. Stopping it..."
+    lsof -ti:${PORT:-8080} | xargs kill -9 2>/dev/null || true
+    sleep 2
+    echo "Previous process stopped."
+fi
+
 # Check FFmpeg installation
 if ! command -v ffmpeg &> /dev/null; then
     echo "Error: FFmpeg is not installed"
@@ -65,6 +73,20 @@ if [ "$USE_SSL" = "true" ]; then
 else
     echo "Starting without SSL (http://)"
 fi
+
+# Get actual IP address
+ACTUAL_IP=$(hostname -I | awk '{print $1}')
+
+# Display server information
+echo "============================================"
+echo "Starting Video Clipping API Server"
+echo "============================================"
+echo "Server URL: http://${HOST:-0.0.0.0}:${PORT:-8080}"
+echo "Local Access: http://localhost:${PORT:-8080}"
+echo "Network Access: http://${ACTUAL_IP}:${PORT:-8080}"
+echo "Workers: ${WORKERS:-4}"
+echo "Logs: logs/access.log, logs/error.log"
+echo "============================================"
 
 # Using gunicorn with uvicorn workers
 $GUNICORN_CMD $GUNICORN_ARGS

@@ -9,48 +9,48 @@ class ASSGenerator:
         self.styles = {
             "english": {
                 "font_name": "Noto Sans CJK KR",
-                "font_size": 28,  # As requested
+                "font_size": 100,  # FHD 기준 적정 크기
                 "bold": True,
                 "primary_color": "&HFFFFFF&",  # White
                 "secondary_color": "&H000000FF",
                 "outline_color": "&H000000&",  # Black outline
                 "back_color": "&H00000000",
-                "outline": 1,  # Standard outline
+                "outline": 3,  # 두꺼운 테두리
                 "shadow": 0,  # No shadow for clean look
                 "alignment": 2,  # Bottom center
                 "margin_l": 0,
                 "margin_r": 0,
-                "margin_v": 50
+                "margin_v": 120  # FHD 기준 하단 여백
             },
             "korean": {
                 "font_name": "Noto Sans CJK KR",
-                "font_size": 24,  # As requested
+                "font_size": 90,  # FHD 기준 적정 크기
                 "bold": True,
                 "primary_color": "&H00D7FF&",  # Gold (BGR: 00D7FF = FFD700 in RGB)
                 "secondary_color": "&H000000FF",
                 "outline_color": "&H000000&",  # Black outline
                 "back_color": "&H00000000",
-                "outline": 1,  # Standard outline
+                "outline": 3,  # 두꺼운 테두리
                 "shadow": 0,  # No shadow for clean look
                 "alignment": 2,  # Bottom center
                 "margin_l": 0,
                 "margin_r": 0,
-                "margin_v": 20
+                "margin_v": 50  # FHD 기준 하단 여백
             },
             "note": {
                 "font_name": "Noto Sans CJK KR",
-                "font_size": 24,  # As requested
+                "font_size": 70,  # FHD 기준 적정 크기
                 "bold": True,  # Bold for maximum thickness
                 "primary_color": "&HFFFFFF&",  # White (BGR: FFFFFF)
                 "secondary_color": "&H000000FF",
                 "outline_color": "&H000000&",  # Black outline
                 "back_color": "&H00000000",
-                "outline": 1,  # Standard outline
+                "outline": 3,  # 두꺼운 테두리
                 "shadow": 0,  # No shadow for clean look
                 "alignment": 7,  # Top left (7 = top left)
-                "margin_l": 30,
-                "margin_r": 30,
-                "margin_v": 30
+                "margin_l": 80,  # FHD 기준 좌측 여백
+                "margin_r": 80,
+                "margin_v": 80  # FHD 기준 상단 여백
             }
         }
         
@@ -100,10 +100,12 @@ class ASSGenerator:
             f.write(self._generate_events(adjusted_subtitles))
             
     def _generate_header(self) -> str:
-        """Generate ASS file header without resolution settings for better scaling"""
+        """Generate ASS file header with standard HD resolution"""
         header = """[Script Info]
 Title: Shadowing Subtitles
 ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
 Collisions: Normal
 PlayDepth: 0
 Timer: 100.0000
@@ -163,29 +165,29 @@ ScaledBorderAndShadow: yes
             start_time = self._format_time(sub['start_time'])
             end_time = self._format_time(sub['end_time'])
             
-            # English subtitle (if available)
-            if 'eng' in sub and sub['eng']:
-                # Check if this is for Type 2 and we have keywords to highlight
-                if 'keywords' in sub and sub['keywords'] and 'english' in sub:
-                    # Use the 'english' field which should have the full text
-                    highlighted_text = self._highlight_keywords(sub['english'], sub['keywords'])
-                    events += "Dialogue: 0,{},{},English,,0,0,0,,{}\n".format(
-                        start_time, end_time, highlighted_text
-                    )
-                else:
-                    events += "Dialogue: 0,{},{},English,,0,0,0,,{}\n".format(
-                        start_time, end_time, sub.get('english', sub['eng'])
-                    )
-            
-            # Korean subtitle (if available)
+            # Korean subtitle (if available) - Layer 0 (bottom)
             if 'kor' in sub and sub['kor']:
                 events += "Dialogue: 0,{},{},Korean,,0,0,0,,{}\n".format(
                     start_time, end_time, sub.get('korean', sub['kor'])
                 )
             
-            # Note (if available)
+            # English subtitle (if available) - Layer 1 (above Korean)
+            if 'eng' in sub and sub['eng']:
+                # Check if this is for Type 2 and we have keywords to highlight
+                if 'keywords' in sub and sub['keywords'] and 'english' in sub:
+                    # Use the 'english' field which should have the full text
+                    highlighted_text = self._highlight_keywords(sub['english'], sub['keywords'])
+                    events += "Dialogue: 1,{},{},English,,0,0,0,,{}\n".format(
+                        start_time, end_time, highlighted_text
+                    )
+                else:
+                    events += "Dialogue: 1,{},{},English,,0,0,0,,{}\n".format(
+                        start_time, end_time, sub.get('english', sub['eng'])
+                    )
+            
+            # Note (if available) - Layer 2 (top)
             if 'note' in sub and sub['note']:
-                events += "Dialogue: 1,{},{},Note,,0,0,0,,{}\n".format(
+                events += "Dialogue: 2,{},{},Note,,0,0,0,,{}\n".format(
                     start_time, end_time, sub['note']
                 )
         
