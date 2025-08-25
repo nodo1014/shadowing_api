@@ -14,7 +14,9 @@ async function createBatchClips() {
             text_eng: entry.querySelector('.clip-text-eng').value,
             text_kor: entry.querySelector('.clip-text-kor').value,
             note: entry.querySelector('.clip-note').value,
-            keywords: entry.querySelector('.clip-keywords').value.split(',').map(k => k.trim()).filter(k => k)
+            keywords: entry.querySelector('.clip-keywords').value.split(',').map(k => k.trim()).filter(k => k),
+            title_1: entry.querySelector('.clip-title-1')?.value || null,
+            title_2: entry.querySelector('.clip-title-2')?.value || null
         };
         clips.push(clip);
     });
@@ -22,7 +24,7 @@ async function createBatchClips() {
     const data = {
         media_path: document.getElementById('batch-media-path').value,
         clips: clips,
-        clipping_type: parseInt(document.getElementById('batch-clipping-type').value),
+        template_number: parseInt(document.getElementById('batch-clipping-type').value),
         individual_clips: document.getElementById('batch-individual-clips').checked
     };
 
@@ -90,6 +92,16 @@ function addClipEntry() {
         <div class="form-group">
             <label>키워드 (쉼표로 구분)</label>
             <input type="text" class="clip-keywords">
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>타이틀 1 (쇼츠: 첫줄, 일반: 왼쪽)</label>
+                <input type="text" class="clip-title-1" placeholder="선택사항">
+            </div>
+            <div class="form-group">
+                <label>타이틀 2 (쇼츠: 둘째줄, 일반: 오른쪽)</label>
+                <input type="text" class="clip-title-2" placeholder="선택사항">
+            </div>
         </div>
     `;
     

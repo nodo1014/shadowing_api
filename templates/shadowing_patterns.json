@@ -188,59 +188,6 @@
         "height": 1920,
         "aspect_ratio": "9:16"
       }
-    },
-    "template_tts": {
-      "name": "Progressive Learning with TTS",
-      "description": "무자막 1회, 블랭크 1회, 블랭크+한글 1회, 영한자막 1회, 무자막 1회, TTS 해설",
-      "clips": [
-        {
-          "subtitle_mode": "no_subtitle",
-          "folder_name": "1_nosub",
-          "count": 1,
-          "subtitle_type": null
-        },
-        {
-          "subtitle_mode": "blank_subtitle",
-          "folder_name": "2_blank",
-          "count": 1,
-          "subtitle_type": "blank"
-        },
-        {
-          "subtitle_mode": "blank_with_korean",
-          "folder_name": "3_blank_kor",
-          "count": 1,
-          "subtitle_type": "blank_korean"
-        },
-        {
-          "subtitle_mode": "both_subtitle",
-          "folder_name": "4_both",
-          "count": 1,
-          "subtitle_type": "full"
-        },
-        {
-          "subtitle_mode": "no_subtitle",
-          "folder_name": "5_nosub",
-          "count": 1,
-          "subtitle_type": null
-        },
-        {
-          "subtitle_mode": "explanation",
-          "folder_name": "6_explanation",
-          "count": 1,
-          "subtitle_type": null,
-          "video_mode": "still_frame",
-          "duration": 5.0
-        }
-      ],
-      "gap_duration": 0.5
-    },
-    "template_91": {
-      "name": "Continuous Play with Bookmark Focus",
-      "description": "연속 재생 중 북마크 구간만 템플릿1 반복",
-      "mode": "continuous_with_bookmarks",
-      "default_subtitle": "full",
-      "bookmark_template": "template_1",
-      "requires_multiple_bookmarks": false
     }
   }
 }

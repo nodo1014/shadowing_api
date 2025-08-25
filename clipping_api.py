@@ -292,6 +292,9 @@ class BatchClippingRequest(BaseModel):
     clips: List[ClipData] = Field(..., description="클립 데이터 리스트")
     template_number: int = Field(1, ge=1, le=100, description="템플릿 번호 (1-3: 일반, 11-13: 쇼츠, 21+: 특수)")
     individual_clips: bool = Field(True, description="개별 클립 저장 여부")
+    title_1: Optional[str] = Field(None, description="타이틀 첫 번째 줄 (쇼츠: 흰색 120pt, 일반: 왼쪽 흰색 40pt)")
+    title_2: Optional[str] = Field(None, description="타이틀 두 번째 줄 (쇼츠: 골드 90pt, 일반: 오른쪽 흰색 40pt)")
+    title_3: Optional[str] = Field(None, description="타이틀 세 번째 줄 (쇼츠 템플릿 2,3용: 흰색 60pt, \\n 지원)")
     
     @validator('media_path')
     def validate_media_path(cls, v):
@@ -984,6 +987,10 @@ async def create_batch_clips(
     
     # Debug logging
     logger.info(f"[Job {job_id}] Batch request - Type: {request.template_number}, Clips: {len(request.clips)}")
+    if request.title_1 or request.title_2:
+        logger.info(f"[Job {job_id}] Titles - title_1: '{request.title_1}', title_2: '{request.title_2}'")
+    else:
+        logger.info(f"[Job {job_id}] No titles provided")
     for i, clip in enumerate(request.clips):
         logger.info(f"  Clip {i+1}: Keywords: {clip.keywords}")
     
@@ -1154,7 +1161,10 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
                 'kor_text_s': add_line_breaks(clip_data.text_kor, 15),  # Short version (쇼츠)
                 'keywords': clip_data.keywords,  # Type 2를 위한 키워드
                 'template_number': request.template_number,  # 클리핑 타입 전달
-                'text_eng_blank': text_eng_blank  # Type 2를 위한 blank 텍스트
+                'text_eng_blank': text_eng_blank,  # Type 2를 위한 blank 텍스트
+                'title_1': request.title_1,  # 배치 전체 타이틀 첫 번째 줄
+                'title_2': request.title_2,  # 배치 전체 타이틀 두 번째 줄
+                'title_3': request.title_3   # 배치 전체 타이틀 세 번째 줄 (설명용)
             }
             
             # 비디오 클리핑 - 템플릿 기반 (자막 파일 자동 생성)
