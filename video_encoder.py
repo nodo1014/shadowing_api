@@ -20,7 +20,7 @@ class VideoEncoder:
             "no_subtitle": {
                 "video_codec": "libx264",
                 "preset": "medium",  # 품질/속도 균형: ultrafast -> medium
-                "crf": "20",  # 좋은 품질/파일크기 균형
+                "crf": "24",  # 테스트용 품질
                 "profile": "high",
                 "level": "4.1",
                 "pix_fmt": "yuv420p",
@@ -35,7 +35,7 @@ class VideoEncoder:
             "with_subtitle": {
                 "video_codec": "libx264",
                 "preset": "medium",  # 품질/속도 균형: ultrafast -> medium
-                "crf": "20",  # 좋은 품질/파일크기 균형
+                "crf": "24",  # 테스트용 품질
                 "profile": "high",
                 "level": "4.1",
                 "pix_fmt": "yuv420p",
@@ -565,7 +565,7 @@ class VideoEncoder:
                             '-vf', f'scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2',
                             '-c:v', 'libx264',
                             '-preset', 'veryfast',
-                            '-crf', '18',
+                            '-crf', '16',
                             '-pix_fmt', 'yuv420p',
                             '-c:a', 'aac',
                             '-b:a', '128k',
@@ -585,7 +585,7 @@ class VideoEncoder:
                             '-af', f'anullsrc=channel_layout=stereo:sample_rate=44100',
                             '-c:v', 'libx264',
                             '-preset', 'veryfast',
-                            '-crf', '18',
+                            '-crf', '16',
                             '-pix_fmt', 'yuv420p',
                             '-c:a', 'aac',
                             '-b:a', '128k',
@@ -634,7 +634,7 @@ class VideoEncoder:
                             '-map', '1:a',
                             '-c:v', 'libx264',
                             '-preset', 'veryfast',
-                            '-crf', '18',
+                            '-crf', '16',
                             '-pix_fmt', 'yuv420p',
                             '-c:a', 'aac',
                             '-b:a', '128k',

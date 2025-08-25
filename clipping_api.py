@@ -41,8 +41,18 @@ from database import (
 # 로깅 설정
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),  # 콘솔 출력
+        logging.FileHandler('logs/clipping_api.log', mode='a')  # 파일 출력
+    ],
+    force=True  # 기존 핸들러 강제 재설정
 )
+
+# 다른 모듈의 로거도 설정
+logging.getLogger('template_video_encoder').setLevel(logging.INFO)
+logging.getLogger('video_encoder').setLevel(logging.INFO)
+
 logger = logging.getLogger(__name__)
 
 # Rate limiter 초기화
@@ -56,6 +66,22 @@ app = FastAPI(
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Validation 에러 핸들러 추가
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.error(f"Validation error: {exc.errors()}")
+    logger.error(f"Request body: {exc.body}")
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": exc.errors(),
+            "body": str(exc.body)
+        }
+    )
 
 # CORS 설정 (운영 환경)
 allowed_origins = os.getenv('ALLOWED_ORIGINS', '*').split(',')
@@ -256,7 +282,7 @@ class ClippingRequest(BaseModel):
     text_kor: str = Field(..., description="한국어 번역")
     note: Optional[str] = Field("", description="문장 설명")
     keywords: Optional[List[str]] = Field([], description="핵심 키워드 리스트 (Type 2에서 사용)")
-    template_number: int = Field(1, ge=1, le=13, description="템플릿 번호 (1-3: 일반, 11-13: 쇼츠)")
+    template_number: int = Field(1, ge=1, le=100, description="템플릿 번호 (1-3: 일반, 11-13: 쇼츠, 21+: 특수)")
     individual_clips: bool = Field(True, description="개별 클립 저장 여부")
 
 
@@ -264,7 +290,7 @@ class BatchClippingRequest(BaseModel):
     """배치 클리핑 요청 모델"""
     media_path: str = Field(..., description="미디어 파일 경로")
     clips: List[ClipData] = Field(..., description="클립 데이터 리스트")
-    template_number: int = Field(1, ge=1, le=13, description="템플릿 번호 (1-3: 일반, 11-13: 쇼츠)")
+    template_number: int = Field(1, ge=1, le=100, description="템플릿 번호 (1-3: 일반, 11-13: 쇼츠, 21+: 특수)")
     individual_clips: bool = Field(True, description="개별 클립 저장 여부")
     
     @validator('media_path')
@@ -287,6 +313,71 @@ class BatchClippingRequest(BaseModel):
                 "keywords": ["Hello", "how"],
                 "template_number": 1,
                 "individual_clips": False
+            }
+        }
+
+
+class SubtitleSegment(BaseModel):
+    """자막 세그먼트 모델"""
+    start_time: float = Field(..., gt=0, description="시작 시간 (초)")
+    end_time: float = Field(..., gt=0, description="종료 시간 (초)")
+    text_eng: str = Field(..., description="영문 자막")
+    text_kor: str = Field(..., description="한국어 번역")
+    is_bookmarked: bool = Field(False, description="북마크 여부")
+    note: Optional[str] = Field("", description="문장 설명")
+    
+    @validator('end_time')
+    def validate_times(cls, v, values):
+        if 'start_time' in values and v <= values['start_time']:
+            raise ValueError('end_time must be greater than start_time')
+        return v
+
+
+class TextbookLessonRequest(BaseModel):
+    """교재형 학습 요청 모델"""
+    media_path: str = Field(..., description="미디어 파일 경로")
+    subtitle_segments: List[SubtitleSegment] = Field(..., description="전체 자막 세그먼트")
+    lesson_title: str = Field("Today's Expressions", description="레슨 제목")
+    template_number: int = Field(91, ge=91, le=93, description="템플릿 번호 (91: 기본)")
+    individual_clips: bool = Field(True, description="개별 클립 저장 여부")
+    
+    @validator('media_path')
+    def validate_media_path(cls, v):
+        validated_path = MediaValidator.validate_media_path(v)
+        if not validated_path:
+            raise ValueError(f'Invalid or unauthorized media path: {v}')
+        return v
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "media_path": "/mnt/qnap/media_eng/indexed_media/sample.mp4",
+                "subtitle_segments": [
+                    {
+                        "start_time": 0.5,
+                        "end_time": 3.5,
+                        "text_eng": "Hello everyone",
+                        "text_kor": "안녕하세요 여러분",
+                        "is_bookmarked": False
+                    },
+                    {
+                        "start_time": 10.5,
+                        "end_time": 15.5,
+                        "text_eng": "I've been waiting for you",
+                        "text_kor": "널 기다리고 있었어",
+                        "is_bookmarked": True,
+                        "note": "현재완료진행형"
+                    },
+                    {
+                        "start_time": 20.0,
+                        "end_time": 23.0,
+                        "text_eng": "Thank you",
+                        "text_kor": "감사합니다",
+                        "is_bookmarked": False
+                    }
+                ],
+                "lesson_title": "Present Perfect Continuous",
+                "template_number": 91
             }
         }
 
@@ -550,6 +641,14 @@ async def create_clip(
 
 async def process_clipping(job_id: str, request: ClippingRequest):
     """비디오 클리핑 처리"""
+    
+    # Template 91 특별 처리 추가
+    if request.template_number == 91:
+        logger.info(f"Template 91 detected, redirecting to template_91 processing")
+        
+        # template_91은 apply_template 방식을 사용해야 함
+        return await _process_template_91_single_clip(job_id, request)
+    
     try:
         # 작업 시작 (메모리와 DB 동시 업데이트)
         update_job_status_both(job_id, "processing", 10, message="클리핑 준비 중...")
@@ -637,7 +736,11 @@ async def process_clipping(job_id: str, request: ClippingRequest):
         template_mapping = {
             11: "template_1_shorts",
             12: "template_2_shorts", 
-            13: "template_3_shorts"
+            13: "template_3_shorts",
+            21: "template_tts",  # TTS 해설 템플릿 1
+            22: "template_tts",  # TTS 해설 템플릿 2
+            23: "template_tts",  # TTS 해설 템플릿 3
+            91: "template_91"    # 교재형 학습 템플릿
         }
         
         if request.template_number in template_mapping:
@@ -912,6 +1015,59 @@ async def create_batch_clips(
     )
 
 
+@app.post("/api/clip/textbook",
+         response_model=ClippingResponse,
+         tags=["Clipping"],
+         summary="교재형 학습 비디오 생성")
+async def create_textbook_lesson(
+    request: TextbookLessonRequest,
+    background_tasks: BackgroundTasks
+):
+    """
+    5개의 북마크를 활용하여 영어 교재형 학습 비디오를 생성합니다.
+    
+    구성:
+    - Warmup: 오늘의 표현 소개
+    - Expression 학습: 각 표현별 소개, 원본, 분석, 연습
+    - Pattern Focus: 공통 패턴 분석
+    - Review: 복습 퀴즈
+    - Wrap-up: 마무리
+    """
+    # Job ID 생성
+    job_id = str(uuid.uuid4())
+    
+    # 북마크된 세그먼트 개수 계산
+    bookmarked_count = sum(1 for seg in request.subtitle_segments if seg.is_bookmarked)
+    logger.info(f"[Job {job_id}] Textbook lesson request - {bookmarked_count} bookmarks")
+    
+    # 작업 상태 초기화
+    job_data = {
+        "status": "pending",
+        "progress": 0,
+        "message": "교재형 학습 준비 중...",
+        "output_file": None,
+        "error": None,
+        "media_path": request.media_path,
+        "template_number": request.template_number,
+        "subtitle_segments": [s.dict() for s in request.subtitle_segments],
+        "lesson_title": request.lesson_title
+    }
+    job_status[job_id] = job_data
+    
+    # 백그라운드 작업 시작
+    background_tasks.add_task(
+        process_textbook_lesson,
+        job_id,
+        request
+    )
+    
+    return ClippingResponse(
+        job_id=job_id,
+        status="accepted",
+        message=f"교재형 학습 비디오 생성이 시작되었습니다. ({bookmarked_count}개 북마크)"
+    )
+
+
 async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
     """배치 비디오 클리핑 처리"""
     try:
@@ -1014,7 +1170,10 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
             template_mapping = {
                 11: "template_1_shorts",
                 12: "template_2_shorts", 
-                13: "template_3_shorts"
+                13: "template_3_shorts",
+                21: "template_tts",  # TTS 해설 템플릿 1
+                22: "template_tts",  # TTS 해설 템플릿 2
+                23: "template_tts"   # TTS 해설 템플릿 3
             }
             
             if request.template_number in template_mapping:
@@ -1022,18 +1181,40 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
             else:
                 template_name = f"template_{request.template_number}"
             
-            # 템플릿을 사용하여 비디오 생성
-            success = template_encoder.create_from_template(
-                template_name=template_name,
-                media_path=str(media_path),
-                subtitle_data=subtitle_data,
-                output_path=str(output_path),
-                start_time=clip_data.start_time,
-                end_time=clip_data.end_time,
-                padding_before=0.5,
-                padding_after=0.5,
-                save_individual_clips=request.individual_clips
-            )
+            # 템플릿 91-93은 apply_template 방식 사용
+            if request.template_number in [91, 92, 93]:
+                # 세그먼트 형식으로 변환
+                segment = {
+                    "start_time": clip_data.start_time,
+                    "end_time": clip_data.end_time,
+                    "text_eng": clip_data.text_eng,
+                    "text_kor": clip_data.text_kor,
+                    "note": clip_data.note,
+                    "is_bookmarked": True,  # 배치의 각 클립은 북마크로 처리
+                    "english_text": clip_data.text_eng,
+                    "korean_text": clip_data.text_kor,
+                    "duration": clip_data.end_time - clip_data.start_time
+                }
+                
+                success = template_encoder.apply_template(
+                    video_path=str(media_path),
+                    output_path=str(output_path),
+                    template_name=template_name,
+                    segments=[segment]
+                )
+            else:
+                # 기존 템플릿은 create_from_template 사용
+                success = template_encoder.create_from_template(
+                    template_name=template_name,
+                    media_path=str(media_path),
+                    subtitle_data=subtitle_data,
+                    output_path=str(output_path),
+                    start_time=clip_data.start_time,
+                    end_time=clip_data.end_time,
+                    padding_before=0.5,
+                    padding_after=0.5,
+                    save_individual_clips=request.individual_clips
+                )
             
             if success:
                 output_files.append({
@@ -1128,6 +1309,275 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
         job_status[job_id]["status"] = "failed"
         job_status[job_id]["error"] = str(e)
         job_status[job_id]["message"] = f"배치 처리 오류: {str(e)}"
+
+
+async def process_textbook_lesson(job_id: str, request: TextbookLessonRequest):
+    """교재형 학습 비디오 처리"""
+    try:
+        # 작업 시작
+        job_status[job_id]["status"] = "processing"
+        job_status[job_id]["message"] = "교재형 학습 비디오 생성 중..."
+        
+        # 미디어 경로 검증
+        media_path = MediaValidator.validate_media_path(request.media_path)
+        if not media_path:
+            raise ValueError(f"Invalid media path: {request.media_path}")
+        
+        # 날짜별 디렉토리 구조
+        from datetime import datetime
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        daily_dir = OUTPUT_DIR / date_str
+        daily_dir.mkdir(exist_ok=True)
+        
+        job_dir = daily_dir / job_id
+        job_dir.mkdir(exist_ok=True)
+        
+        # 출력 파일명 생성
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_filename = f"{timestamp}_tp_{request.template_number}_textbook.mp4"
+        output_path = job_dir / output_filename
+        
+        # 템플릿 이름 결정
+        template_mapping = {
+            91: "template_91",
+            92: "template_92",
+            93: "template_93"
+        }
+        
+        template_name = template_mapping.get(request.template_number, "template_91")
+        
+        # 자막 세그먼트 데이터 준비
+        segments = []
+        for idx, segment in enumerate(request.subtitle_segments):
+            segment_dict = segment.dict()
+            # 템플릿 인코더가 기대하는 형식으로 변환
+            segment_dict['english_text'] = segment_dict.get('text_eng', '')
+            segment_dict['korean_text'] = segment_dict.get('text_kor', '')
+            segment_dict['start_time'] = segment_dict.get('start_time', 0)
+            segment_dict['duration'] = segment_dict.get('end_time', 0) - segment_dict.get('start_time', 0)
+            # is_bookmarked는 그대로 유지
+            segments.append(segment_dict)
+            
+        # 북마크 확인 로그
+        bookmarked_count = sum(1 for seg in segments if seg.get('is_bookmarked', False))
+        logger.info(f"[Job {job_id}] Processing {len(segments)} segments, {bookmarked_count} bookmarked")
+        
+        # 디버그: 세그먼트 내용 확인
+        for i, seg in enumerate(segments[:3]):  # 처음 3개만
+            logger.info(f"Segment {i}: is_bookmarked={seg.get('is_bookmarked')}, text_eng={seg.get('text_eng', '')[:30]}...")
+        
+        # 진행 상황 업데이트
+        job_status[job_id]["progress"] = 20
+        job_status[job_id]["message"] = "템플릿 비디오 인코더 초기화..."
+        
+        # 템플릿 비디오 인코더 사용
+        template_encoder = TemplateVideoEncoder()
+        
+        # apply_template 메서드 호출
+        success = template_encoder.apply_template(
+            video_path=str(media_path),
+            output_path=str(output_path),
+            template_name=template_name,
+            segments=segments
+        )
+        
+        if not success:
+            raise Exception("Failed to create textbook lesson video")
+        
+        # 출력 파일 크기 확인
+        if output_path.exists():
+            file_size = output_path.stat().st_size
+            file_size_mb = round(file_size / (1024 * 1024), 2)
+        else:
+            raise Exception("Output file not created")
+        
+        # 메타데이터 저장
+        metadata = {
+            "job_id": job_id,
+            "media_path": str(media_path),
+            "template_number": request.template_number,
+            "lesson_title": request.lesson_title,
+            "subtitle_segments": segments,
+            "output_file": str(output_path),
+            "file_size_mb": file_size_mb,
+            "created_at": datetime.now().isoformat()
+        }
+        
+        with open(job_dir / "textbook_metadata.json", 'w', encoding='utf-8') as f:
+            json.dump(metadata, f, ensure_ascii=False, indent=2)
+        
+        # 작업 완료
+        job_status[job_id]["status"] = "completed"
+        job_status[job_id]["progress"] = 100
+        # 북마크된 세그먼트 개수 계산
+        bookmarked_count = sum(1 for seg in request.subtitle_segments if seg.is_bookmarked)
+        job_status[job_id]["message"] = f"교재형 학습 비디오 생성 완료! ({bookmarked_count}개 북마크)"
+        job_status[job_id]["output_file"] = str(output_path)
+        job_status[job_id]["file_size_mb"] = file_size_mb
+        
+        # DB에 저장
+        job_data_for_db = {
+            "status": "completed",
+            "progress": 100,
+            "media_path": str(media_path),
+            "template_number": request.template_number,
+            "start_time": request.subtitle_segments[0].start_time if request.subtitle_segments else 0,
+            "end_time": request.subtitle_segments[-1].end_time if request.subtitle_segments else 0,
+            "output_file": str(output_path),
+            "output_size": file_size,
+            "text_eng": request.lesson_title,
+            "text_kor": f"{bookmarked_count}개 북마크",
+            "note": json.dumps({"lesson_title": request.lesson_title}),
+            "keywords": []
+        }
+        save_job_to_db(job_id, job_data_for_db)
+        
+    except Exception as e:
+        logger.error(f"Error creating textbook lesson: {e}", exc_info=True)
+        job_status[job_id]["status"] = "failed"
+        job_status[job_id]["error"] = str(e)
+        job_status[job_id]["message"] = f"교재형 학습 비디오 생성 오류: {str(e)}"
+        
+        # DB에 실패 상태 저장
+        job_data_for_db = {
+            "status": "failed",
+            "progress": 0,
+            "media_path": request.media_path,
+            "template_number": request.template_number,
+            "start_time": 0,
+            "end_time": 0,
+            "error_message": str(e)
+        }
+        save_job_to_db(job_id, job_data_for_db)
+
+
+async def _process_template_91_single_clip(job_id: str, request: ClippingRequest):
+    """Template 91 단일 클립 처리 (apply_template 방식 사용)"""
+    try:
+        logger.info(f"=== Template 91 processing started for job_id: {job_id} ===")
+        logger.info(f"Request details: media_path={request.media_path}, start_time={request.start_time}, end_time={request.end_time}")
+        
+        # 작업 시작
+        update_job_status_both(job_id, "processing", 10, message="Template 91 클리핑 준비 중...")
+        
+        # 미디어 경로 검증
+        media_path = MediaValidator.validate_media_path(request.media_path)
+        
+        # 작업 디렉토리 생성
+        from datetime import datetime
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        daily_dir = OUTPUT_DIR / date_str
+        daily_dir.mkdir(exist_ok=True)
+        job_dir = daily_dir / job_id
+        job_dir.mkdir(exist_ok=True)
+        
+        # 단일 세그먼트 생성 (북마크로 처리)
+        segment = {
+            "start_time": request.start_time,
+            "end_time": request.end_time,
+            "text_eng": request.text_eng,
+            "text_kor": request.text_kor,
+            "note": request.note or "",
+            "is_bookmarked": True  # 단일 클립은 북마크로 처리
+        }
+        
+        # 날짜시간_tp_91.mp4 형식의 파일명 생성
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{timestamp}_tp_91.mp4"
+        output_path = job_dir / filename
+        
+        update_job_status_both(job_id, "processing", 30, message="Template 91 비디오 생성 중...")
+        
+        logger.info(f"Creating template 91 video at: {output_path}")
+        logger.info(f"Segment data: {segment}")
+        
+        # TemplateVideoEncoder의 apply_template 방식 사용
+        from template_video_encoder import TemplateVideoEncoder
+        template_encoder = TemplateVideoEncoder()
+        
+        # apply_template 방식으로 처리 (올바른 파라미터 순서)
+        logger.info("Calling template_encoder.apply_template...")
+        success = template_encoder.apply_template(
+            video_path=str(media_path),
+            output_path=str(output_path),
+            template_name="template_91",
+            segments=[segment]  # 단일 세그먼트
+        )
+        logger.info(f"Template encoder returned: {success}")
+        
+        if success and output_path.exists():
+            update_job_status_both(job_id, "processing", 90, message="Template 91 클리핑 완료, 파일 정리 중...")
+            
+            # 파일 크기 계산
+            file_size = output_path.stat().st_size
+            file_size_mb = round(file_size / (1024 * 1024), 2)
+            
+            # 메타데이터 저장
+            metadata = {
+                "job_id": job_id,
+                "media_path": str(media_path),
+                "template_number": 91,
+                "start_time": request.start_time,
+                "end_time": request.end_time,
+                "text_eng": request.text_eng,
+                "text_kor": request.text_kor,
+                "note": request.note,
+                "output_file": str(output_path),
+                "file_size_mb": file_size_mb,
+                "created_at": datetime.now().isoformat()
+            }
+            
+            with open(job_dir / "template_91_metadata.json", 'w', encoding='utf-8') as f:
+                json.dump(metadata, f, ensure_ascii=False, indent=2)
+            
+            # 작업 완료
+            job_status[job_id]["status"] = "completed"
+            job_status[job_id]["progress"] = 100
+            job_status[job_id]["message"] = "Template 91 클리핑 완료!"
+            job_status[job_id]["output_file"] = str(output_path)
+            job_status[job_id]["file_size_mb"] = file_size_mb
+            
+            # DB에 저장
+            job_data_for_db = {
+                "status": "completed",
+                "progress": 100,
+                "media_path": str(media_path),
+                "template_number": 91,
+                "start_time": request.start_time,
+                "end_time": request.end_time,
+                "output_file": str(output_path),
+                "output_size": file_size,
+                "text_eng": request.text_eng,
+                "text_kor": request.text_kor,
+                "note": request.note or "",
+                "keywords": []
+            }
+            save_job_to_db(job_id, job_data_for_db)
+            
+            logger.info(f"=== Template 91 클리핑 완료 ===\nOutput: {output_path}\nSize: {file_size_mb}MB")
+            logger.info(f"Job {job_id} completed successfully")
+            
+        else:
+            raise Exception("Template 91 비디오 생성 실패")
+            
+    except Exception as e:
+        logger.error(f"Template 91 클리핑 오류: {e}", exc_info=True)
+        job_status[job_id]["status"] = "failed"
+        job_status[job_id]["error"] = str(e)
+        job_status[job_id]["message"] = f"Template 91 클리핑 오류: {str(e)}"
+        
+        # DB에 실패 상태 저장
+        job_data_for_db = {
+            "status": "failed",
+            "progress": 0,
+            "media_path": request.media_path,
+            "template_number": 91,
+            "start_time": request.start_time,
+            "end_time": request.end_time,
+            "error_message": str(e)
+        }
+        save_job_to_db(job_id, job_data_for_db)
 
 
 @app.get("/api/batch/status/{job_id}",

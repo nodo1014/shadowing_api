@@ -20,7 +20,7 @@ class ASSGenerator:
                 "alignment": 2,  # Bottom center
                 "margin_l": 0,
                 "margin_r": 0,
-                "margin_v": 170  # FHD 기준 하단 여백 (50px 위로)
+                "margin_v": 220  # FHD 기준 하단 여백 (220px 위로)
             },
             "korean": {
                 "font_name": "Noto Sans CJK KR",
@@ -35,7 +35,7 @@ class ASSGenerator:
                 "alignment": 2,  # Bottom center
                 "margin_l": 0,
                 "margin_r": 0,
-                "margin_v": 140  # FHD 기준 하단 여백 (영어와 30px 간격)
+                "margin_v": 140  # FHD 기준 하단 여백 (140px 위로, 영어와 80px 간격)
             },
             "note": {
                 "font_name": "Noto Sans CJK KR",
