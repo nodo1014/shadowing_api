@@ -299,20 +299,35 @@ Style: Default,{fontname},{fontsize},{color},&H000000FF,&H00000000,&H00000000,0,
                 logger.error(f"Frame extraction error: {result.stderr}")
                 return False
             
-            # 검은 배경 위에 프레임을 올려서 무음 비디오 생성
-            # 이렇게 하면 원본 비디오의 레터박스가 유지됨
-            cmd = [
+            # 무음 WAV 파일 생성 (template 1과 동일한 방식)
+            silence_wav = f"/tmp/silence_{int(time.time() * 1000)}.wav"
+            silence_cmd = [
                 'ffmpeg', '-y',
                 '-f', 'lavfi',
-                '-i', 'color=c=black:s=1920x1080:d=' + str(duration),  # 검은 배경
+                '-i', f'anullsrc=channel_layout=stereo:sample_rate=44100',
+                '-t', str(duration),
+                '-acodec', 'pcm_s16le',
+                '-ar', '44100',
+                '-ac', '2',
+                silence_wav
+            ]
+            
+            result = subprocess.run(silence_cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                logger.error(f"Silence generation error: {result.stderr}")
+                if os.path.exists(temp_frame):
+                    os.remove(temp_frame)
+                return False
+            
+            # 검은 배경 위에 프레임을 올려서 무음 비디오 생성
+            # 이미지와 WAV 파일을 결합
+            cmd = [
+                'ffmpeg', '-y',
                 '-loop', '1',
                 '-i', temp_frame,  # 추출한 프레임
-                '-f', 'lavfi',
-                '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',  # 무음 오디오
-                '-filter_complex', '[1:v]scale=1920:1080:force_original_aspect_ratio=decrease[scaled];[0:v][scaled]overlay=(W-w)/2:(H-h)/2[v]',  # 검은 배경 위에 비디오 중앙 배치
+                '-i', silence_wav,  # 무음 WAV
                 '-t', str(duration),
-                '-map', '[v]',
-                '-map', '2:a',
+                '-vf', 'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black',
                 '-c:v', 'libx264',
                 '-preset', 'medium',
                 '-crf', '16',
@@ -328,6 +343,8 @@ Style: Default,{fontname},{fontsize},{color},&H000000FF,&H00000000,&H00000000,0,
             # 임시 파일 삭제
             if os.path.exists(temp_frame):
                 os.remove(temp_frame)
+            if os.path.exists(silence_wav):
+                os.remove(silence_wav)
             
             if result.returncode != 0:
                 logger.error(f"FFmpeg error: {result.stderr}")
@@ -514,7 +531,7 @@ Style: Default,{fontname},{fontsize},{color},&H000000FF,&H00000000,&H00000000,0,
         cmd.extend([
             '-c:v', 'libx264',
             '-preset', 'medium',
-            '-crf', '23',
+            '-crf', '16',
             '-c:a', 'copy',
             output_path
         ])
@@ -792,13 +809,21 @@ Style: Default,{fontname},{fontsize},{color},&H000000FF,&H00000000,&H00000000,0,
                     if os.path.exists(clip):
                         f.write(f"file '{clip}'\n")
             
-            # FFmpeg로 병합
+            # FFmpeg로 병합 - 재인코딩하여 호환성 보장
             cmd = [
                 'ffmpeg', '-y',
                 '-f', 'concat',
                 '-safe', '0',
                 '-i', concat_file,
-                '-c', 'copy',
+                '-c:v', 'libx264',
+                '-preset', 'medium', 
+                '-crf', '16',
+                '-pix_fmt', 'yuv420p',
+                '-c:a', 'aac',
+                '-ar', '48000',  # 표준 샘플레이트로 통일
+                '-ac', '2',      # 스테레오로 통일
+                '-b:a', '192k',
+                '-movflags', '+faststart',
                 output_path
             ]
             
