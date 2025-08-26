@@ -27,6 +27,7 @@ import redis
 import pickle
 import signal
 import psutil
+import subprocess
 
 from ass_generator import ASSGenerator
 from video_encoder import VideoEncoder
@@ -282,7 +283,7 @@ class ClippingRequest(BaseModel):
     text_kor: str = Field(..., description="한국어 번역")
     note: Optional[str] = Field("", description="문장 설명")
     keywords: Optional[List[str]] = Field([], description="핵심 키워드 리스트 (Type 2에서 사용)")
-    template_number: int = Field(1, ge=1, le=100, description="템플릿 번호 (1-3: 일반, 11-13: 쇼츠, 21+: 특수)")
+    template_number: int = Field(1, ge=1, le=100, description="템플릿 번호 (1-3: 일반, 11-13: 쇼츠, 21-29: TTS, 31-39: 스터디클립, 91+: 교재)")
     individual_clips: bool = Field(True, description="개별 클립 저장 여부")
 
 
@@ -290,11 +291,12 @@ class BatchClippingRequest(BaseModel):
     """배치 클리핑 요청 모델"""
     media_path: str = Field(..., description="미디어 파일 경로")
     clips: List[ClipData] = Field(..., description="클립 데이터 리스트")
-    template_number: int = Field(1, ge=1, le=100, description="템플릿 번호 (1-3: 일반, 11-13: 쇼츠, 21+: 특수)")
+    template_number: int = Field(1, ge=1, le=100, description="템플릿 번호 (1-3: 일반, 11-13: 쇼츠, 21-29: TTS, 31-39: 스터디클립, 91+: 교재)")
     individual_clips: bool = Field(True, description="개별 클립 저장 여부")
     title_1: Optional[str] = Field(None, description="타이틀 첫 번째 줄 (쇼츠: 흰색 120pt, 일반: 왼쪽 흰색 40pt)")
     title_2: Optional[str] = Field(None, description="타이틀 두 번째 줄 (쇼츠: 골드 90pt, 일반: 오른쪽 흰색 40pt)")
     title_3: Optional[str] = Field(None, description="타이틀 세 번째 줄 (쇼츠 템플릿 2,3용: 흰색 60pt, \\n 지원)")
+    study: Optional[str] = Field(None, description="학습 모드 (preview: 맨 앞 미리보기, review: 맨 뒤 복습, None: 사용안함)")
     
     @validator('media_path')
     def validate_media_path(cls, v):
@@ -302,6 +304,12 @@ class BatchClippingRequest(BaseModel):
         validated_path = MediaValidator.validate_media_path(v)
         if not validated_path:
             raise ValueError(f'Invalid or unauthorized media path: {v}')
+        return v
+    
+    @validator('study')
+    def validate_study(cls, v):
+        if v is not None and v not in ['preview', 'review']:
+            raise ValueError(f'study must be "preview", "review", or null/none, got: {v}')
         return v
     
     class Config:
@@ -743,6 +751,12 @@ async def process_clipping(job_id: str, request: ClippingRequest):
             21: "template_tts",  # TTS 해설 템플릿 1
             22: "template_tts",  # TTS 해설 템플릿 2
             23: "template_tts",  # TTS 해설 템플릿 3
+            31: "template_study_preview",  # 스터디 클립 - 미리보기
+            32: "template_study_review",   # 스터디 클립 - 복습
+            33: "template_study_shorts_preview",  # 쇼츠 스터디 클립 - 미리보기
+            34: "template_study_shorts_review",   # 쇼츠 스터디 클립 - 복습
+            35: "template_study_original", # 스터디 클립 - 원본 오디오
+            36: "template_study_shorts_original", # 쇼츠 스터디 클립 - 원본 오디오
             91: "template_91"    # 교재형 학습 템플릿
         }
         
@@ -1097,6 +1111,64 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
         job_dir.mkdir(exist_ok=True)
         
         output_files = []
+        review_clip_path = None
+        
+        # study 모드인 경우 학습 클립을 먼저 생성
+        if request.study:
+            logger.info(f"[Job {job_id}] Creating study clip FIRST...")
+            job_status[job_id]["progress"] = 5
+            mode_text = "미리보기" if request.study == "preview" else "복습"
+            job_status[job_id]["message"] = f"{mode_text} 클립 생성 중..."
+            
+            # 클립 데이터 준비
+            clips_data_for_review = []
+            clip_timestamps = []
+            for clip_data in request.clips:
+                clips_data_for_review.append({
+                    'text_eng': clip_data.text_eng,
+                    'text_kor': clip_data.text_kor
+                })
+                clip_timestamps.append((clip_data.start_time, clip_data.end_time))
+            
+            # 리뷰 클립 파일명
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            review_filename = f"{timestamp}_tp_{request.template_number}_review.mp4"
+            review_clip_path = job_dir / review_filename
+            
+            # 간단한 리뷰 클립 생성
+            from review_clip_generator import ReviewClipGenerator
+            review_generator = ReviewClipGenerator()
+            
+            try:
+                # 모드에 따른 타이틀 텍스트 결정
+                review_title = "스피드 미리보기" if request.study == "preview" else "스피드 복습"
+                
+                success = await review_generator.create_review_clip(
+                    clips_data=clips_data_for_review,
+                    output_path=str(review_clip_path),
+                    title=review_title,
+                    template_number=request.template_number,
+                    video_path=request.video_path,
+                    clip_timestamps=clip_timestamps
+                )
+                
+                if success and review_clip_path.exists():
+                    logger.info(f"Review clip created: {review_clip_path}")
+                    # 리뷰 클립을 임시 저장 (나중에 위치에 따라 추가)
+                    job_status[job_id]["review_clip_data"] = {
+                        "type": "study",
+                        "file": str(review_clip_path),
+                        "description": f"{review_title} 클립"
+                    }
+                else:
+                    logger.warning("Failed to create review clip, continuing without it")
+                    review_clip_path = None
+                    
+            except Exception as e:
+                logger.error(f"Review clip creation error: {e}")
+                # 리뷰 클립 실패해도 계속 진행
+                review_clip_path = None
+        
         ass_generator = ASSGenerator()
         video_encoder = VideoEncoder()
         
@@ -1183,7 +1255,13 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
                 13: "template_3_shorts",
                 21: "template_tts",  # TTS 해설 템플릿 1
                 22: "template_tts",  # TTS 해설 템플릿 2
-                23: "template_tts"   # TTS 해설 템플릿 3
+                23: "template_tts",  # TTS 해설 템플릿 3
+                31: "template_study_preview",  # 스터디 클립 - 미리보기
+                32: "template_study_review",   # 스터디 클립 - 복습
+                33: "template_study_shorts_preview",  # 쇼츠 스터디 클립 - 미리보기
+                34: "template_study_shorts_review",   # 쇼츠 스터디 클립 - 복습
+                35: "template_study_original", # 스터디 클립 - 원본 오디오
+                36: "template_study_shorts_original" # 쇼츠 스터디 클립 - 원본 오디오
             }
             
             if request.template_number in template_mapping:
@@ -1238,6 +1316,9 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
             else:
                 print(f"Warning: Failed to create clip {clip_num}")
         
+        # 리뷰 클립은 이미 맨 처음에 생성했으므로 여기서는 건너뜀
+        # (코드는 process_batch_clipping 함수 시작 부분에 있음)
+        
         # 통합 비디오 생성
         combined_video_path = None
         if len(output_files) > 0:
@@ -1250,28 +1331,58 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
             combined_filename = f"{timestamp}_tp_{request.template_number}_combined.mp4"
             combined_video_path = job_dir / combined_filename
             
-            # FFmpeg concat 파일 생성
-            concat_file = job_dir / "concat_list.txt"
-            with open(concat_file, 'w') as f:
-                for output_file in output_files:
-                    # 파일 경로를 절대 경로로 변환
-                    file_path = Path(output_file["file"]).absolute()
-                    # 파일 존재 확인
-                    if not file_path.exists():
-                        logger.warning(f"File not found for concat: {file_path}")
-                    f.write(f"file '{file_path}'\n")
+            # 리뷰 클립 위치에 따라 output_files에 추가
+            review_clip_data = job_status[job_id].get("review_clip_data")
+            if review_clip_data:
+                logger.info(f"[Job {job_id}] Adding study clip, mode: {request.study}")
+                if request.study == "preview":
+                    # 맨 앞에 추가
+                    logger.info(f"[Job {job_id}] Inserting study clip at the beginning")
+                    output_files.insert(0, review_clip_data)
+                else:  # "review"
+                    # 맨 뒤에 추가
+                    logger.info(f"[Job {job_id}] Appending study clip at the end")
+                    output_files.append(review_clip_data)
             
-            logger.info(f"Concat list created: {concat_file}")
-            
-            # FFmpeg를 사용하여 비디오 연결
+            # filter_complex를 사용한 재인코딩 방식으로 비디오 합치기
             import subprocess
+            
+            # 입력 파일들 준비
+            input_files = []
+            filter_parts = []
+            
+            for idx, output_file in enumerate(output_files):
+                file_path = Path(output_file["file"]).absolute()
+                if not file_path.exists():
+                    logger.warning(f"File not found: {file_path}")
+                    continue
+                input_files.extend(['-i', str(file_path)])
+                # 각 입력에 대한 스트림 참조
+                filter_parts.append(f"[{idx}:v][{idx}:a]")
+            
+            if len(input_files) == 0:
+                logger.error("No valid input files for combining")
+                raise Exception("No input files")
+            
+            # filter_complex 구성
+            num_inputs = len(input_files) // 2
+            filter_complex = f"{''.join(filter_parts)}concat=n={num_inputs}:v=1:a=1[outv][outa]"
+            
             concat_cmd = [
                 'ffmpeg',
-                '-f', 'concat',
-                '-safe', '0',
-                '-i', str(concat_file),
-                '-c', 'copy',  # 재인코딩 없이 빠르게 연결
-                '-y',
+                '-y'
+            ] + input_files + [
+                '-filter_complex', filter_complex,
+                '-map', '[outv]',
+                '-map', '[outa]',
+                '-c:v', 'libx264',  # 비디오 재인코딩
+                '-preset', 'fast',
+                '-crf', '20',
+                '-c:a', 'aac',      # 오디오 재인코딩
+                '-b:a', '192k',
+                '-ar', '44100',
+                '-ac', '2',
+                '-movflags', '+faststart',
                 str(combined_video_path)
             ]
             
@@ -1302,6 +1413,8 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
             "total_clips": len(request.clips),
             "output_files": output_files,
             "combined_video": str(combined_video_path) if combined_video_path else None,
+            "study_mode": request.study,
+            "review_clip": job_status[job_id].get("review_clip"),
             "created_at": datetime.now().isoformat()
         }
         
@@ -1311,7 +1424,15 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
         # 작업 완료
         job_status[job_id]["status"] = "completed"
         job_status[job_id]["progress"] = 100
-        job_status[job_id]["message"] = f"배치 클리핑 완료! ({len(output_files)-1}/{len(request.clips)}개 + 통합 비디오)"
+        
+        # 완료 메시지 생성
+        if request.study and review_clip_path:
+            mode_text = "미리보기" if request.study == "preview" else "복습"
+            message = f"배치 클리핑 완료! ({mode_text} 클립 + {len(request.clips)}개 클립 + 통합 비디오)"
+        else:
+            message = f"배치 클리핑 완료! ({len(request.clips)}개 클립 + 통합 비디오)"
+        
+        job_status[job_id]["message"] = message
         job_status[job_id]["output_files"] = output_files
         job_status[job_id]["combined_video"] = str(combined_video_path) if combined_video_path else None
         

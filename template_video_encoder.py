@@ -6,11 +6,13 @@ import json
 import os
 import tempfile
 import logging
+import asyncio
 from pathlib import Path
 from typing import Dict, List, Optional
 from video_encoder import VideoEncoder
 from subtitle_generator import SubtitleGenerator
 from subtitle_pipeline import SubtitlePipeline, SubtitleType
+from img_tts_generator import ImgTTSGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +50,11 @@ class TemplateVideoEncoder(VideoEncoder):
         
         # 현재 템플릿 이름 저장 (쇼츠 여부 확인용)
         self._current_template_name = template_name
+        
+        # 타이틀 정보 저장 (쇼츠용)
+        self._title_line1 = subtitle_data.get('title_1', '')
+        self._title_line2 = subtitle_data.get('title_2', '')
+        self._title_line3 = subtitle_data.get('title_3', '')
         
         # Calculate padded times
         if start_time is not None and end_time is not None:
@@ -102,6 +109,12 @@ class TemplateVideoEncoder(VideoEncoder):
                                                            padded_start, duration,
                                                            subtitle_file=subtitle_file):
                             raise Exception(f"Failed to create still frame {clip_config['subtitle_mode']} clip")
+                    elif video_mode in ['still_frame_tts', 'still_frame_original'] and clip_config.get('use_img_tts_generator'):
+                        # Use img_tts_generator for study clips
+                        if not self._encode_study_clip(media_path, temp_clips[-1],
+                                                      padded_start, duration,
+                                                      subtitle_data, clip_config):
+                            raise Exception(f"Failed to create study {clip_config['subtitle_mode']} clip")
                     else:
                         if not self._encode_clip(media_path, temp_clips[-1],
                                                padded_start, duration,
@@ -225,9 +238,8 @@ class TemplateVideoEncoder(VideoEncoder):
     def _encode_still_frame_clip(self, input_path: str, output_path: str,
                                 start_time: float = None, duration: float = None,
                                 subtitle_file: str = None) -> bool:
-        """정지화면 클립 생성 - 첫 프레임을 고정하고 오디오와 자막 유지"""
+        """정지화면 클립 생성 - 기존 방식 유지 (자막은 FFmpeg ass 필터 사용)"""
         import subprocess
-        import tempfile
         import os
         
         try:
@@ -290,10 +302,21 @@ class TemplateVideoEncoder(VideoEncoder):
                 '-map', '1:a'
             ])
             
-            # 자막 추가
+            # 비디오 필터 구성
+            vf_filters = []
+            
+            # 자막 추가 (ASS 파일 사용 - 기존 스타일 시스템 유지)
             if subtitle_file and os.path.exists(subtitle_file):
                 subtitle_path = subtitle_file.replace('\\', '/').replace("'", "'\\''")
-                cmd.extend(['-vf', f"ass='{subtitle_path}'"])
+                vf_filters.append(f"ass='{subtitle_path}'")
+            
+            # 템플릿에 타이틀 추가
+            title_filter = self._get_title_filter()
+            if title_filter:
+                vf_filters.append(title_filter)
+            
+            if vf_filters:
+                cmd.extend(['-vf', ','.join(vf_filters)])
             
             cmd.extend([
                 '-shortest',
@@ -338,10 +361,10 @@ class TemplateVideoEncoder(VideoEncoder):
                                              subtitle_file, 
                                              width=1080, height=1920)
         else:
-            # 일반 인코딩
-            return super()._encode_clip(input_path, output_path, 
-                                      start_time, duration, 
-                                      subtitle_file)
+            # 일반 인코딩 (타이틀 필터 적용을 위해 오버라이드)
+            return self._encode_clip_with_title(input_path, output_path, 
+                                               start_time, duration, 
+                                               subtitle_file)
     
     def _encode_clip_with_crop(self, input_path: str, output_path: str,
                              start_time: float = None, duration: float = None,
@@ -379,6 +402,11 @@ class TemplateVideoEncoder(VideoEncoder):
             subtitle_path = subtitle_file.replace('\\', '/').replace("'", "'\\''")
             video_filter += f",ass='{subtitle_path}'"
         
+        # 템플릿에 타이틀 추가
+        title_filter = self._get_title_filter()
+        if title_filter:
+            video_filter += f",{title_filter}"
+        
         cmd.extend(['-vf', video_filter])
         
         # 인코딩 설정 (일반 인코딩과 동일하게 통일)
@@ -404,3 +432,298 @@ class TemplateVideoEncoder(VideoEncoder):
             return False
         
         return True
+    
+    def _get_title_filter(self) -> str:
+        """템플릿별 타이틀 필터 생성"""
+        title1 = getattr(self, '_title_line1', '')
+        title2 = getattr(self, '_title_line2', '')
+        title3 = getattr(self, '_title_line3', '')
+        
+        if not title1 and not title2 and not title3:
+            return ""
+        
+        filters = []
+        
+        # 폰트 파일 경로 설정 (여러 가능한 경로 시도)
+        font_paths = [
+            "/home/kang/.fonts/TmonMonsori.ttf",  # 실제 설치된 경로
+            os.path.expanduser("~/.fonts/TmonMonsori.ttf"),  # 홈 디렉토리 확장
+            "/usr/share/fonts/truetype/TmonMonsori.ttf",
+            "/usr/local/share/fonts/TmonMonsori.ttf",
+            "./fonts/TmonMonsori.ttf"
+        ]
+        
+        font_file = None
+        for path in font_paths:
+            if os.path.exists(path):
+                font_file = path
+                break
+        
+        if not font_file:
+            logger.warning("TmonMonsori font not found, using default font")
+            font_file = "NanumGothic"  # 한글 지원되는 기본 폰트
+        
+        # 현재 템플릿 확인
+        current_template = getattr(self, '_current_template_name', '')
+        is_shorts = '_shorts' in current_template
+        
+        if is_shorts:
+            # 쇼츠 템플릿: 중앙 정렬, 위아래 배치
+            # 템플릿별로 다른 y 위치 설정
+            if 'template_1_shorts' in current_template:
+                base_y = 150  # 정사각형 크롭은 기본값
+            elif 'template_2_shorts' in current_template:
+                base_y = 250  # 좌우 크롭은 상하 여백이 더 큼
+            elif 'template_3_shorts' in current_template:
+                base_y = 350  # 전체 화면은 상하 여백이 가장 큼
+            else:
+                base_y = 150  # 기본값
+            
+            # 첫 번째 줄 (흰색, 120pt)
+            if title1:
+                # 이스케이프 처리
+                text1 = title1.replace(":", "\\:").replace("'", "\\'")
+                filters.append(
+                    f"drawtext=text='{text1}':fontfile='{font_file}':fontsize=120:"
+                    f"fontcolor=white:x=(w-text_w)/2:y={base_y}"
+                )
+            
+            # 두 번째 줄 (골드색, 90pt)
+            if title2:
+                # 이스케이프 처리
+                text2 = title2.replace(":", "\\:").replace("'", "\\'")
+                # 첫 번째 줄이 있으면 그 아래 적절한 간격으로
+                y_pos = base_y + 150 if title1 else base_y  # 120(font) + 30(gap) = 150
+                filters.append(
+                    f"drawtext=text='{text2}':fontfile='{font_file}':fontsize=90:"
+                    f"fontcolor=#FFD700:x=(w-text_w)/2:y={y_pos}"
+                )
+            
+            # 세 번째 줄 (흰색, 60pt, 왼쪽 정렬, 여러 줄 지원)
+            if title3:
+                # 이스케이프 처리 (\n은 유지)
+                text3 = title3.replace(":", "\\:").replace("'", "\\'")
+                # title2가 있으면 그 아래, 없으면 title1 아래
+                if title2:
+                    y_pos3 = y_pos + 120  # 90(font) + 30(gap)
+                elif title1:
+                    y_pos3 = base_y + 150  # 120(font) + 30(gap)
+                else:
+                    y_pos3 = base_y
+                
+                filters.append(
+                    f"drawtext=text='{text3}':fontfile='{font_file}':fontsize=60:"
+                    f"fontcolor=white:x=100:y={y_pos3}"  # 왼쪽 여백 100px
+                )
+        else:
+            # 일반 템플릿: 좌우 배치, 모두 흰색
+            # 첫 번째 줄 (왼쪽, 흰색)
+            if title1:
+                # 이스케이프 처리
+                text1 = title1.replace(":", "\\:").replace("'", "\\'")
+                filters.append(
+                    f"drawtext=text='{text1}':fontfile='{font_file}':fontsize=40:"
+                    f"fontcolor=white:x=50:y=50"
+                )
+            
+            # 두 번째 줄 (오른쪽, 흰색)
+            if title2:
+                # 이스케이프 처리
+                text2 = title2.replace(":", "\\:").replace("'", "\\'")
+                filters.append(
+                    f"drawtext=text='{text2}':fontfile='{font_file}':fontsize=40:"
+                    f"fontcolor=white:x=w-text_w-50:y=50"
+                )
+        
+        return ",".join(filters)
+    
+    def _encode_clip_with_title(self, input_path: str, output_path: str,
+                               start_time: float = None, duration: float = None,
+                               subtitle_file: str = None) -> bool:
+        """일반 템플릿용 타이틀이 적용된 클립 인코딩"""
+        cmd = ['ffmpeg', '-y']
+        
+        if start_time is not None:
+            cmd.extend(['-ss', str(start_time)])
+        
+        cmd.extend(['-i', input_path])
+        
+        if duration is not None:
+            cmd.extend(['-t', str(duration)])
+        
+        # 비디오 필터 구성
+        vf_filters = []
+        
+        # 자막 추가
+        if subtitle_file and os.path.exists(subtitle_file):
+            subtitle_path = subtitle_file.replace('\\', '/').replace("'", "'\\''")
+            vf_filters.append(f"ass='{subtitle_path}'")
+        
+        # 타이틀 추가
+        title_filter = self._get_title_filter()
+        if title_filter:
+            vf_filters.append(title_filter)
+        
+        if vf_filters:
+            cmd.extend(['-vf', ','.join(vf_filters)])
+        
+        # 인코딩 설정
+        cmd.extend([
+            '-c:v', 'libx264',
+            '-preset', 'medium',
+            '-crf', '16',
+            '-profile:v', 'high',
+            '-level', '4.1',
+            '-pix_fmt', 'yuv420p',
+            '-tune', 'film',
+            '-x264opts', 'keyint=240:min-keyint=24:scenecut=40',
+            '-c:a', 'aac',
+            '-b:a', '192k',
+            '-movflags', '+faststart',
+            output_path
+        ])
+        
+        returncode, stdout, stderr = self._run_ffmpeg_with_timeout(cmd)
+        
+        if returncode != 0:
+            logger.error(f"FFmpeg error: {stderr}")
+            return False
+        
+        return True
+    
+    def _encode_study_clip(self, input_path: str, output_path: str,
+                          start_time: float = None, duration: float = None,
+                          subtitle_data: Dict = None, clip_config: Dict = None) -> bool:
+        """스터디 클립 생성 - img_tts_generator 사용"""
+        try:
+            # ImgTTSGenerator 초기화
+            generator = ImgTTSGenerator()
+            
+            # 템플릿 타입 확인
+            is_shorts = "shorts" in clip_config.get("subtitle_mode", "")
+            is_preview = "preview" in clip_config.get("subtitle_mode", "")
+            
+            # 해상도 설정
+            if is_shorts:
+                resolution = (1080, 1920)
+                # 쇼츠용 크롭 필터 (template_1_shorts 스타일 - 정사각형 크롭, 화면에 가득 차도록)
+                crop_filter = "crop='min(iw,ih):min(iw,ih)',scale=1080:1080,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black"
+            else:
+                resolution = (1920, 1080)
+                crop_filter = None
+            
+            # 프레임 추출 시간 (시작 시간에서 0.1초 후)
+            extract_time = start_time + 0.1 if start_time else 0.1
+            
+            # 텍스트 준비
+            texts = []
+            if subtitle_data:
+                texts.append({
+                    "text": subtitle_data.get("text_kor", ""),
+                    "style": {}
+                })
+                texts.append({
+                    "text": subtitle_data.get("text_eng", ""),
+                    "style": {}
+                })
+            
+            # 오디오 설정 (원본 오디오 또는 TTS)
+            use_original_audio = clip_config.get('use_original_audio', False)
+            
+            if use_original_audio:
+                # 원본 오디오 사용
+                audio_source = {
+                    'type': 'extract',
+                    'path': input_path,
+                    'start': start_time,
+                    'end': start_time + duration if duration else None
+                }
+                tts_config = None
+            else:
+                # TTS 사용
+                tts_text = subtitle_data.get("text_eng", "") if subtitle_data else ""
+                voice = "en-US-AriaNeural" if is_preview else "en-US-AriaNeural"  # 같은 음성 사용
+                rate = "+0%" if is_preview else "-10%"  # 복습은 느리게
+                
+                tts_config = {
+                    "text": tts_text,
+                    "voice": voice,
+                    "rate": rate
+                }
+                audio_source = None
+            
+            # 타이틀 설정
+            title = "스피드 미리보기" if is_preview else "스피드 복습"
+            
+            # 무음 추가 - 쇼츠는 0.3초, 일반은 0.5초
+            silence_duration = 0.3 if is_shorts else 0.5
+            
+            # 실제 duration 계산 (오디오/TTS 길이는 자동으로 계산되므로, 무음만 추가)
+            if use_original_audio and duration:
+                # 원본 오디오 사용시 duration에 무음 추가
+                total_duration = duration + silence_duration
+            else:
+                # TTS 사용시 None으로 설정하면 TTS 길이 + 무음
+                total_duration = None
+            
+            # 스터디 클립 생성 (subprocess로 별도 프로세스에서 실행)
+            import subprocess
+            import json
+            
+            # 임시 스크립트 생성
+            script_content = f"""
+import sys
+sys.path.insert(0, {json.dumps(str(Path(__file__).parent))})
+
+import asyncio
+from img_tts_generator import ImgTTSGenerator
+
+async def main():
+    generator = ImgTTSGenerator()
+    result = await generator.create_video(
+        video_frame={{
+            "path": {json.dumps(input_path)},
+            "time": {extract_time},
+            "crop": {json.dumps(crop_filter) if crop_filter else 'None'}
+        }},
+        texts={json.dumps(texts)},
+        tts_config={json.dumps(tts_config) if tts_config else 'None'},
+        audio_source={json.dumps(audio_source) if audio_source else 'None'},
+        output_path={json.dumps(output_path)},
+        resolution={resolution},
+        style_preset={json.dumps("shorts" if is_shorts else "subtitle")},
+        add_silence={silence_duration}
+    )
+    print("SUCCESS" if result else "FAILED")
+
+asyncio.run(main())
+"""
+            
+            # 임시 파일에 스크립트 저장
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+                f.write(script_content)
+                script_path = f.name
+            
+            try:
+                # 별도 프로세스에서 실행
+                result = subprocess.run(
+                    ['python', script_path],
+                    capture_output=True,
+                    text=True
+                )
+                
+                # 결과 확인
+                if result.returncode == 0 and "SUCCESS" in result.stdout:
+                    return True
+                else:
+                    logger.error(f"Study clip generation failed: {result.stderr}")
+                    return False
+            finally:
+                # 임시 스크립트 삭제
+                import os
+                os.unlink(script_path)
+            
+        except Exception as e:
+            logger.error(f"Error creating study clip: {e}", exc_info=True)
+            return False
