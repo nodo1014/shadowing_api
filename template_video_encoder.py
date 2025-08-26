@@ -103,23 +103,79 @@ class TemplateVideoEncoder(VideoEncoder):
                     # Check if this clip should use still frame mode
                     video_mode = clip_config.get('video_mode', 'normal')
                     
+                    # Check for pre_silence
+                    pre_silence = clip_config.get('pre_silence', 0.0)
+                    post_silence = clip_config.get('post_silence', 0.0)
+                    
+                    # Create temporary clip without pre_silence first
+                    temp_clip_no_silence = None
+                    if pre_silence > 0:
+                        temp_clip_no_silence = tempfile.NamedTemporaryFile(suffix='_no_silence.mp4', delete=False)
+                        temp_clip_no_silence.close()
+                        actual_output = temp_clip_no_silence.name
+                    else:
+                        actual_output = temp_clips[-1]
+                    
                     # Encode the clip based on video mode
                     if video_mode == 'still_frame':
-                        if not self._encode_still_frame_clip(media_path, temp_clips[-1],
+                        if not self._encode_still_frame_clip(media_path, actual_output,
                                                            padded_start, duration,
                                                            subtitle_file=subtitle_file):
                             raise Exception(f"Failed to create still frame {clip_config['subtitle_mode']} clip")
-                    elif video_mode in ['still_frame_tts', 'still_frame_original'] and clip_config.get('use_img_tts_generator'):
+                    elif video_mode in ['still_frame_tts', 'still_frame_original', 'still_frame_kor_tts'] and clip_config.get('use_img_tts_generator'):
                         # Use img_tts_generator for study clips
-                        if not self._encode_study_clip(media_path, temp_clips[-1],
+                        if not self._encode_study_clip(media_path, actual_output,
                                                       padded_start, duration,
                                                       subtitle_data, clip_config):
                             raise Exception(f"Failed to create study {clip_config['subtitle_mode']} clip")
+                    elif video_mode == 'slow_motion':
+                        # Slow motion video with speed adjustment
+                        speed = clip_config.get('speed', 0.7)
+                        if not self._encode_slow_motion_clip(media_path, actual_output,
+                                                           padded_start, duration,
+                                                           subtitle_file=subtitle_file,
+                                                           speed=speed):
+                            raise Exception(f"Failed to create slow motion {clip_config['subtitle_mode']} clip")
                     else:
-                        if not self._encode_clip(media_path, temp_clips[-1],
+                        if not self._encode_clip(media_path, actual_output,
                                                padded_start, duration,
                                                subtitle_file=subtitle_file):
                             raise Exception(f"Failed to create {clip_config['subtitle_mode']} clip")
+                    
+                    # Add pre_silence if needed
+                    if pre_silence > 0 and temp_clip_no_silence:
+                        # 쫼츠 여부 확인
+                        is_shorts = '_shorts' in self._current_template_name if hasattr(self, '_current_template_name') else False
+                        resolution = (1080, 1920) if is_shorts else (1920, 1080)
+                        
+                        # Create black video for pre_silence and concatenate
+                        cmd = [
+                            'ffmpeg', '-y',
+                            '-f', 'lavfi',
+                            '-i', f'color=black:s={resolution[0]}x{resolution[1]}:d={pre_silence}',
+                            '-f', 'lavfi', 
+                            '-i', f'anullsrc=channel_layout=stereo:sample_rate=44100:duration={pre_silence}',
+                            '-i', temp_clip_no_silence.name,
+                            '-filter_complex',
+                            '[0:v][2:v]concat=n=2:v=1:a=0[outv];[1:a][2:a]concat=n=2:v=0:a=1[outa]',
+                            '-map', '[outv]',
+                            '-map', '[outa]',
+                            '-c:v', 'libx264',
+                            '-preset', 'medium',
+                            '-crf', '16',
+                            '-c:a', 'aac',
+                            '-b:a', '192k',
+                            '-movflags', '+faststart',
+                            temp_clips[-1]
+                        ]
+                        
+                        returncode, stdout, stderr = self._run_ffmpeg_with_timeout(cmd)
+                        if returncode != 0:
+                            logger.error(f"Failed to add pre_silence: {stderr}")
+                            raise Exception(f"Failed to add pre_silence to {clip_config['subtitle_mode']} clip")
+                        
+                        # Clean up temporary file
+                        os.unlink(temp_clip_no_silence.name)
                     
                     # Save individual clip if requested
                     if save_individual_clips and clip_base_dir:
@@ -629,6 +685,7 @@ class TemplateVideoEncoder(VideoEncoder):
             
             # 오디오 설정 (원본 오디오 또는 TTS)
             use_original_audio = clip_config.get('use_original_audio', False)
+            use_korean_tts = clip_config.get('use_korean_tts', False)
             
             if use_original_audio:
                 # 원본 오디오 사용
@@ -641,9 +698,16 @@ class TemplateVideoEncoder(VideoEncoder):
                 tts_config = None
             else:
                 # TTS 사용
-                tts_text = subtitle_data.get("text_eng", "") if subtitle_data else ""
-                voice = "en-US-AriaNeural" if is_preview else "en-US-AriaNeural"  # 같은 음성 사용
-                rate = "+0%" if is_preview else "-10%"  # 복습은 느리게
+                if use_korean_tts:
+                    # 한글 TTS
+                    tts_text = subtitle_data.get("text_kor", "") if subtitle_data else ""
+                    voice = "ko-KR-SunHiNeural"  # Edge TTS sunhee 음성
+                    rate = "+0%"
+                else:
+                    # 영어 TTS
+                    tts_text = subtitle_data.get("text_eng", "") if subtitle_data else ""
+                    voice = "en-US-AriaNeural"  # Edge TTS Aria 음성
+                    rate = "+0%" if is_preview else "-10%"  # 복습은 느리게
                 
                 tts_config = {
                     "text": tts_text,
@@ -727,3 +791,67 @@ asyncio.run(main())
         except Exception as e:
             logger.error(f"Error creating study clip: {e}", exc_info=True)
             return False
+    
+    def _encode_slow_motion_clip(self, input_path: str, output_path: str,
+                                start_time: float = None, duration: float = None,
+                                subtitle_file: str = None, speed: float = 0.7) -> bool:
+        """슬로우 모션 클립 생성"""
+        cmd = ['ffmpeg', '-y']
+        
+        if start_time is not None:
+            cmd.extend(['-ss', str(start_time)])
+        
+        cmd.extend(['-i', input_path])
+        
+        if duration is not None:
+            # 슬로우 모션이므로 실제 입력 길이는 더 짧음
+            input_duration = duration / speed
+            cmd.extend(['-t', str(input_duration)])
+        
+        # 비디오/오디오 필터
+        vf_filters = []
+        af_filters = []
+        
+        # 속도 조절 필터
+        vf_filters.append(f"setpts={1/speed}*PTS")
+        af_filters.append(f"atempo={speed}")
+        
+        # 자막 추가
+        if subtitle_file and os.path.exists(subtitle_file):
+            subtitle_path = subtitle_file.replace('\\', '/').replace("'", "'\\''")
+            vf_filters.append(f"ass='{subtitle_path}'")
+        
+        # 타이틀 추가
+        title_filter = self._get_title_filter()
+        if title_filter:
+            vf_filters.append(title_filter)
+        
+        if vf_filters:
+            cmd.extend(['-vf', ','.join(vf_filters)])
+        
+        if af_filters:
+            cmd.extend(['-af', ','.join(af_filters)])
+        
+        # 인코딩 설정
+        cmd.extend([
+            '-c:v', 'libx264',
+            '-preset', 'medium',
+            '-crf', '16',
+            '-profile:v', 'high',
+            '-level', '4.1',
+            '-pix_fmt', 'yuv420p',
+            '-tune', 'film',
+            '-x264opts', 'keyint=240:min-keyint=24:scenecut=40',
+            '-c:a', 'aac',
+            '-b:a', '192k',
+            '-movflags', '+faststart',
+            output_path
+        ])
+        
+        returncode, stdout, stderr = self._run_ffmpeg_with_timeout(cmd)
+        
+        if returncode != 0:
+            logger.error(f"FFmpeg error: {stderr}")
+            return False
+        
+        return True

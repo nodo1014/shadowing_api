@@ -322,6 +322,41 @@
         "height": 1920,
         "aspect_ratio": "9:16"
       }
+    },
+    "template_4": {
+      "name": "Advanced Learning Pattern",
+      "description": "정지화면+한글TTS → 70%속도 → 100%속도(2회)",
+      "clips": [
+        {
+          "subtitle_mode": "still_kor_tts",
+          "folder_name": "1_still_kor",
+          "count": 1,
+          "subtitle_type": "full",
+          "video_mode": "still_frame_kor_tts",
+          "use_img_tts_generator": true,
+          "use_korean_tts": true,
+          "pre_silence": 0.5,
+          "post_silence": 0.5
+        },
+        {
+          "subtitle_mode": "slow_70",
+          "folder_name": "2_slow70",
+          "count": 1,
+          "subtitle_type": "full",
+          "video_mode": "slow_motion",
+          "speed": 0.7,
+          "post_silence": 0.5
+        },
+        {
+          "subtitle_mode": "normal_100",
+          "folder_name": "3_normal",
+          "count": 2,
+          "subtitle_type": "full",
+          "video_mode": "normal",
+          "post_silence": 0.5
+        }
+      ],
+      "gap_duration": 0
     }
   }
 }
