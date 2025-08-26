@@ -38,7 +38,7 @@ class VideoEncoder:
                 "video_codec": "libx264",
                 "audio_codec": "aac",
                 "preset": "medium",
-                "crf": "16",
+                "crf": "22",
                 "profile": "high",
                 "level": "4.1",
                 "pix_fmt": "yuv420p",

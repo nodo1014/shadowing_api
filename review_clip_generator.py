@@ -141,7 +141,7 @@ class ReviewClipGenerator:
                         '-vf', drawtext_filter,
                         '-c:v', 'libx264',
                         '-preset', 'medium',
-                        '-crf', '16',
+                        '-crf', '22',
                         '-profile:v', 'high',
                         '-level', '4.1',
                         '-pix_fmt', 'yuv420p',
@@ -163,7 +163,7 @@ class ReviewClipGenerator:
                         '-vf', drawtext_filter,
                         '-c:v', 'libx264',
                         '-preset', 'medium',
-                        '-crf', '16',
+                        '-crf', '22',
                         '-profile:v', 'high',
                         '-level', '4.1',
                         '-pix_fmt', 'yuv420p',
@@ -358,7 +358,7 @@ class ReviewClipGenerator:
                        f"x=(w-text_w)/2:y=(h-text_h)/2",
                 '-c:v', 'libx264',
                 '-preset', 'medium',
-                '-crf', '16',  # 템플릿과 동일한 CRF
+                '-crf', '22',  # 템플릿과 동일한 CRF
                 '-profile:v', 'high',
                 '-level', '4.1',
                 '-pix_fmt', 'yuv420p',

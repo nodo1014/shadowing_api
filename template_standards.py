@@ -24,7 +24,7 @@ class TemplateStandards:
     # 표준 설정값들
     STANDARD_VIDEO_WIDTH = 1920
     STANDARD_VIDEO_HEIGHT = 1080
-    STANDARD_VIDEO_CRF = 16
+    STANDARD_VIDEO_CRF = 22
     STANDARD_VIDEO_PRESET = 'medium'
     STANDARD_VIDEO_CODEC = 'libx264'
     STANDARD_PIX_FMT = 'yuv420p'

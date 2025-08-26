@@ -338,7 +338,7 @@ def create_still_frame_video(
             '-t', str(duration),
             '-c:v', 'libx264',
             '-preset', 'medium',
-            '-crf', '16',
+            '-crf', '22',
             '-pix_fmt', 'yuv420p',
             '-r', '30',
             '-c:a', 'aac',

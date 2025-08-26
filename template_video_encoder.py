@@ -162,7 +162,7 @@ class TemplateVideoEncoder(VideoEncoder):
                             '-map', '[outa]',
                             '-c:v', 'libx264',
                             '-preset', 'medium',
-                            '-crf', '16',
+                            '-crf', '22',
                             '-c:a', 'aac',
                             '-b:a', '192k',
                             '-movflags', '+faststart',
@@ -469,7 +469,7 @@ class TemplateVideoEncoder(VideoEncoder):
         cmd.extend([
             '-c:v', 'libx264',
             '-preset', 'medium',
-            '-crf', '16',
+            '-crf', '22',
             '-profile:v', 'high',
             '-level', '4.1',
             '-pix_fmt', 'yuv420p',
@@ -627,7 +627,7 @@ class TemplateVideoEncoder(VideoEncoder):
         cmd.extend([
             '-c:v', 'libx264',
             '-preset', 'medium',
-            '-crf', '16',
+            '-crf', '22',
             '-profile:v', 'high',
             '-level', '4.1',
             '-pix_fmt', 'yuv420p',
@@ -836,7 +836,7 @@ asyncio.run(main())
         cmd.extend([
             '-c:v', 'libx264',
             '-preset', 'medium',
-            '-crf', '16',
+            '-crf', '22',
             '-profile:v', 'high',
             '-level', '4.1',
             '-pix_fmt', 'yuv420p',

@@ -462,7 +462,7 @@ class ImgTTSGenerator:
         cmd.extend([
             '-c:v', 'libx264',
             '-preset', 'medium',
-            '-crf', '16',
+            '-crf', '22',
             '-profile:v', 'high',
             '-level', '4.1',
             '-pix_fmt', 'yuv420p',
