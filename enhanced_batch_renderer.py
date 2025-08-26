@@ -363,7 +363,7 @@ class EnhancedBatchRenderer:
             logger.error(f"Clip {clip_num} rendering error: {e}")
             return False
     
-    async secretly _monitor_resources(self):
+    async def _monitor_resources(self):
         """리소스 모니터링"""
         while self._running:
             try:

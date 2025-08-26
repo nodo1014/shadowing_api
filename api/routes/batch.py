@@ -315,8 +315,8 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
                 # review는 마지막에 추가
                 output_files.append(review_entry)
         
-        # 배치 렌더링 처리
-        if request.batch_mode and request.template_number in [11, 12, 13]:  # 쇼츠 템플릿
+        # 배치 렌더링 처리 (쇼츠 템플릿인 경우)
+        if request.template_number in [11, 12, 13]:  # 쇼츠 템플릿
             logger.info(f"[Job {job_id}] Starting batch rendering for shorts...")
             job_status[job_id]["progress"] = 92
             job_status[job_id]["message"] = "배치 렌더링 중..."
