@@ -1,5 +1,18 @@
 {
   "patterns": {
+    "template_original": {
+      "name": "Original Style",
+      "description": "원본 구간 추출 - 학습 가공 없이 자막만 스타일 적용",
+      "clips": [
+        {
+          "subtitle_mode": "both_subtitle",
+          "folder_name": "original",
+          "count": 1,
+          "subtitle_type": "full"
+        }
+      ],
+      "gap_duration": 0
+    },
     "template_1": {
       "name": "Progressive Learning",
       "description": "무자막 1회, 블랭크 1회, 블랭크+한글 1회, 영한자막 1회, 무자막 1회",

@@ -44,6 +44,9 @@ executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
 
 # Template Mapping
 TEMPLATE_MAPPING = {
+    # 원본 스타일 (학습 가공 없음)
+    0: "template_original",
+    
     # 일반 템플릿
     1: "template_1",
     2: "template_2", 

@@ -36,6 +36,7 @@ from api.routes import (
     clip_router,
     batch_router,
     mixed_router,
+    extract_router,
     status_router,
     download_router,
     admin_router
@@ -60,10 +61,20 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     logger.error(f"Validation error: {exc.errors()}")
     logger.error(f"Request body: {exc.body}")
+    
+    # Convert errors to serializable format
+    errors = []
+    for error in exc.errors():
+        error_dict = dict(error)
+        # Convert any non-serializable objects to strings
+        if 'ctx' in error_dict and 'error' in error_dict['ctx']:
+            error_dict['ctx']['error'] = str(error_dict['ctx']['error'])
+        errors.append(error_dict)
+    
     return JSONResponse(
         status_code=422,
         content={
-            "detail": exc.errors(),
+            "detail": errors,
             "body": str(exc.body)
         }
     )
@@ -89,6 +100,7 @@ app.include_router(health_router)
 app.include_router(clip_router)
 app.include_router(batch_router)
 app.include_router(mixed_router)
+app.include_router(extract_router)
 app.include_router(status_router)
 app.include_router(download_router)
 app.include_router(admin_router)

@@ -95,3 +95,35 @@ class MixedTemplateRequest(BaseModel):
         if not validated_path:
             raise ValueError(f'Invalid or unauthorized media path: {v}')
         return v
+
+
+class SubtitleInfo(BaseModel):
+    """자막 정보"""
+    start: float = Field(..., description="자막 시작 시간")
+    end: float = Field(..., description="자막 종료 시간")
+    eng: str = Field(..., description="영어 자막")
+    kor: str = Field(..., description="한글 자막")
+
+
+class ExtractRangeRequest(BaseModel):
+    """구간 추출 요청 - 여러 자막을 포함한 긴 구간"""
+    media_path: str = Field(..., description="미디어 파일 경로")
+    start_time: float = Field(..., ge=0, description="전체 구간 시작 시간")
+    end_time: float = Field(..., gt=0, description="전체 구간 종료 시간")
+    subtitles: List[SubtitleInfo] = Field(..., description="구간 내 자막들의 타이밍 정보")
+    template_number: int = Field(0, description="템플릿 번호 (0: 원본 스타일)")
+    title_1: Optional[str] = Field(None, description="타이틀 첫 번째 줄")
+    title_2: Optional[str] = Field(None, description="타이틀 두 번째 줄")
+    
+    @validator('media_path')
+    def validate_media_path(cls, v):
+        validated_path = MediaValidator.validate_media_path(v)
+        if not validated_path:
+            raise ValueError(f'Invalid or unauthorized media path: {v}')
+        return v
+    
+    @validator('end_time')
+    def validate_end_time(cls, v, values):
+        if 'start_time' in values and v <= values['start_time']:
+            raise ValueError('end_time must be greater than start_time')
+        return v

@@ -6,7 +6,9 @@ from .requests import (
     ClippingRequest,
     BatchClippingRequest,
     MixedTemplateClipData,
-    MixedTemplateRequest
+    MixedTemplateRequest,
+    SubtitleInfo,
+    ExtractRangeRequest
 )
 
 from .responses import (
@@ -26,6 +28,8 @@ __all__ = [
     'BatchClippingRequest',
     'MixedTemplateClipData',
     'MixedTemplateRequest',
+    'SubtitleInfo',
+    'ExtractRangeRequest',
     
     # Response Models
     'ClippingResponse',
