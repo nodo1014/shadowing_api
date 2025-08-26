@@ -52,7 +52,7 @@ if [ "$USE_SSL" = "true" ]; then
 fi
 
 # Build gunicorn command
-GUNICORN_ARGS="clipping_api:app \
+GUNICORN_ARGS="main:app \
     --workers ${WORKERS:-4} \
     --worker-class uvicorn.workers.UvicornWorker \
     --bind ${HOST:-0.0.0.0}:${PORT:-8080} \
