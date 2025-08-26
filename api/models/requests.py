@@ -61,3 +61,37 @@ class BatchClippingRequest(BaseModel):
         if v and v not in ["preview", "review"]:
             raise ValueError('study must be either "preview", "review", or None')
         return v
+
+
+class MixedTemplateClipData(BaseModel):
+    """개별 템플릿을 지정할 수 있는 클립 데이터"""
+    start_time: float = Field(..., ge=0, description="클립 시작 시간 (초)")
+    end_time: float = Field(..., gt=0, description="클립 종료 시간 (초)")
+    text_eng: str = Field(..., description="영문 자막")
+    text_kor: str = Field(..., description="한글 자막")
+    template_number: int = Field(..., ge=1, le=100, description="이 클립에 적용할 템플릿 번호")
+    note: Optional[str] = Field(None, description="메모")
+    keywords: Optional[List[str]] = Field(None, description="키워드 리스트 (템플릿 2번용)")
+    
+    @validator('end_time')
+    def validate_end_time(cls, v, values):
+        if 'start_time' in values and v <= values['start_time']:
+            raise ValueError('end_time must be greater than start_time')
+        return v
+
+
+class MixedTemplateRequest(BaseModel):
+    """혼합 템플릿 클리핑 요청"""
+    media_path: str = Field(..., description="미디어 파일 경로")
+    clips: List[MixedTemplateClipData] = Field(..., description="각각 다른 템플릿이 적용될 클립들")
+    combine: bool = Field(True, description="True: 하나의 비디오로 결합, False: 개별 파일로 생성")
+    title_1: Optional[str] = Field(None, description="결합 비디오 타이틀 첫 번째 줄")
+    title_2: Optional[str] = Field(None, description="결합 비디오 타이틀 두 번째 줄")
+    transitions: bool = Field(False, description="트랜지션 효과 사용 여부")
+    
+    @validator('media_path')
+    def validate_media_path(cls, v):
+        validated_path = MediaValidator.validate_media_path(v)
+        if not validated_path:
+            raise ValueError(f'Invalid or unauthorized media path: {v}')
+        return v

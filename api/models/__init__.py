@@ -4,7 +4,9 @@ API Models Package
 from .requests import (
     ClipData,
     ClippingRequest,
-    BatchClippingRequest
+    BatchClippingRequest,
+    MixedTemplateClipData,
+    MixedTemplateRequest
 )
 
 from .responses import (
@@ -22,6 +24,8 @@ __all__ = [
     'ClipData',
     'ClippingRequest',
     'BatchClippingRequest',
+    'MixedTemplateClipData',
+    'MixedTemplateRequest',
     
     # Response Models
     'ClippingResponse',
