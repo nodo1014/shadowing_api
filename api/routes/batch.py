@@ -27,7 +27,6 @@ from video_encoder import VideoEncoder
 from template_video_encoder import TemplateVideoEncoder
 from review_clip_generator import ReviewClipGenerator
 from enhanced_batch_renderer import EnhancedBatchRenderer
-from template_standards import TemplateStandards
 
 router = APIRouter(prefix="/api", tags=["Clipping"])
 logger = logging.getLogger(__name__)
@@ -246,46 +245,17 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
             else:
                 template_name = f"template_{request.template_number}"
             
-            # 템플릿 91-93은 apply_template 방식 사용
-            if request.template_number in [91, 92, 93]:
-                # 세그먼트 형식으로 변환
-                segment = {
-                    "start_time": clip_data.start_time,
-                    "end_time": clip_data.end_time,
-                    "text_eng": clip_data.text_eng,
-                    "text_kor": clip_data.text_kor,
-                    "note": clip_data.note,
-                    "is_bookmarked": True,  # 배치의 각 클립은 북마크로 처리
-                    "english_text": clip_data.text_eng,
-                    "korean_text": clip_data.text_kor,
-                    "duration": clip_data.end_time - clip_data.start_time
-                }
-                
-                # 템플릿 표준에 따라 처리
-                standards = TemplateStandards()
-                success = standards.apply_template(
-                    template_name=template_name,
-                    video_path=str(media_path),
-                    segments=[segment],  # 단일 세그먼트
-                    output_path=str(output_path),
-                    titles={
-                        "title_1": request.title_1,
-                        "title_2": request.title_2,
-                        "title_3": request.title_3
-                    } if any([request.title_1, request.title_2, request.title_3]) else None
-                )
-            else:
-                # 기존 템플릿 방식
-                success = template_encoder.create_from_template(
-                    template_name=template_name,
-                    media_path=str(media_path),
-                    subtitle_data=subtitle_data,
-                    output_path=str(output_path),
-                    start_time=clip_data.start_time,
-                    end_time=clip_data.end_time,
-                    padding_before=0.5,
-                    padding_after=0.5
-                )
+            # 템플릿을 사용하여 비디오 생성
+            success = template_encoder.create_from_template(
+                template_name=template_name,
+                media_path=str(media_path),
+                subtitle_data=subtitle_data,
+                output_path=str(output_path),
+                start_time=clip_data.start_time,
+                end_time=clip_data.end_time,
+                padding_before=0.5,
+                padding_after=0.5
+            )
             
             if success:
                 output_files.append({

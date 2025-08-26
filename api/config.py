@@ -62,8 +62,4 @@ TEMPLATE_MAPPING = {
     35: "template_study_original",
     36: "template_study_shorts_original",
     
-    # 교재형
-    91: "template_textbook_basic",
-    92: "template_textbook_advanced",
-    93: "template_textbook_premium"
 }

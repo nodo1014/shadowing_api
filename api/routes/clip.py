@@ -96,12 +96,6 @@ async def create_clip(
 async def process_clipping(job_id: str, request: ClippingRequest):
     """비디오 클리핑 처리"""
     
-    # Template 91 특별 처리 추가
-    if request.template_number == 91:
-        logger.info(f"Template 91 detected, redirecting to template_91 processing")
-        
-        # template_91은 apply_template 방식을 사용해야 함
-        return await _process_template_91_single_clip(job_id, request)
     
     try:
         # 작업 시작 (메모리와 DB 동시 업데이트)
@@ -242,73 +236,3 @@ async def process_clipping(job_id: str, request: ClippingRequest):
         )
 
 
-async def _process_template_91_single_clip(job_id: str, request: ClippingRequest):
-    """Template 91 (교재형) 단일 클립 처리"""
-    from template_91_renderer import Template91Renderer
-    
-    try:
-        # 작업 시작
-        update_job_status_both(job_id, "processing", 10, message="교재형 클립 준비 중...")
-        
-        # 미디어 경로 검증
-        media_path = MediaValidator.validate_media_path(request.media_path)
-        if not media_path:
-            raise ValueError(f"Invalid media path: {request.media_path}")
-        
-        # 출력 디렉토리 생성
-        date_str = datetime.now().strftime("%Y-%m-%d")
-        daily_dir = OUTPUT_DIR / date_str
-        daily_dir.mkdir(exist_ok=True)
-        
-        job_dir = daily_dir / job_id
-        job_dir.mkdir(exist_ok=True)
-        
-        # 파일명 생성
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{timestamp}_template_91.mp4"
-        output_path = job_dir / filename
-        
-        # Template91 렌더러 사용
-        update_job_status_both(job_id, "processing", 30, message="교재형 비디오 생성 중...")
-        
-        renderer = Template91Renderer()
-        
-        # 단일 클립 데이터로 변환
-        clip_data = {
-            'start_time': request.start_time,
-            'end_time': request.end_time,
-            'text_eng': request.text_eng,
-            'text_kor': request.text_kor
-        }
-        
-        # 렌더링 수행 
-        success = await executor.run_in_executor(
-            None,
-            renderer.render_single_clip,
-            str(media_path),
-            clip_data,
-            str(output_path)
-        )
-        
-        if success and output_path.exists():
-            update_job_status_both(
-                job_id,
-                "completed", 
-                100,
-                message="교재형 클립이 완료되었습니다.",
-                output_file=str(output_path)
-            )
-            
-            logger.info(f"[Job {job_id}] Template 91 clip completed: {output_path}")
-        else:
-            raise Exception("Template 91 비디오 생성 실패")
-            
-    except Exception as e:
-        logger.error(f"[Job {job_id}] Template 91 Error: {str(e)}")
-        update_job_status_both(
-            job_id,
-            "failed",
-            0, 
-            message="교재형 클립 생성 실패",
-            error_message=str(e)
-        )

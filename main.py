@@ -35,7 +35,6 @@ from api.routes import (
     health_router,
     clip_router,
     batch_router,
-    textbook_router,
     status_router,
     download_router,
     admin_router
@@ -88,7 +87,6 @@ app.mount("/output", StaticFiles(directory=str(OUTPUT_DIR)), name="output")
 app.include_router(health_router)
 app.include_router(clip_router)
 app.include_router(batch_router)
-app.include_router(textbook_router)
 app.include_router(status_router)
 app.include_router(download_router)
 app.include_router(admin_router)
