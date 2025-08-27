@@ -1,4 +1,13 @@
 {
+  "subtitle_mode_labels": {
+    "no_subtitle": "무자막",
+    "blank_subtitle": "빈칸 채우기",
+    "blank_with_korean": "빈칸 + 한글",
+    "both_subtitle": "",
+    "full_subtitle": "",
+    "korean_only": "한글만",
+    "english_only": "영어만"
+  },
   "patterns": {
     "template_original": {
       "name": "Original Style",

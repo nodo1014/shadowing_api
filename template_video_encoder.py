@@ -24,16 +24,18 @@ class TemplateVideoEncoder(VideoEncoder):
     def __init__(self):
         super().__init__()
         self.subtitle_generator = SubtitleGenerator()
-        self.templates = self._load_templates()
+        self.templates, self.subtitle_mode_labels = self._load_templates()
     
-    def _load_templates(self) -> Dict:
+    def _load_templates(self) -> tuple:
         """템플릿 파일 로드"""
         template_path = Path(__file__).parent / "templates" / "shadowing_patterns.json"
         if template_path.exists():
             with open(template_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                return data.get('patterns', {})
-        return {}
+                patterns = data.get('patterns', {})
+                subtitle_mode_labels = data.get('subtitle_mode_labels', {})
+                return patterns, subtitle_mode_labels
+        return {}, {}
     
     def create_from_template(self, template_name: str, media_path: str, 
                            subtitle_data: Dict, output_path: str,
@@ -139,6 +141,8 @@ class TemplateVideoEncoder(VideoEncoder):
                                                            speed=speed):
                             raise Exception(f"Failed to create slow motion {clip_config['subtitle_mode']} clip")
                     else:
+                        # Pass subtitle_mode to encoding method
+                        self._current_subtitle_mode = clip_config.get('subtitle_mode')
                         if not self._encode_clip(media_path, actual_output,
                                                padded_start, duration,
                                                subtitle_file=subtitle_file):
@@ -509,6 +513,9 @@ class TemplateVideoEncoder(VideoEncoder):
         title2 = getattr(self, '_title_line2', '')
         title3 = getattr(self, '_title_line3', '')
         
+        current_template = getattr(self, '_current_template_name', '')
+        logger.info(f"[Title Filter] Template: {current_template}, title1='{title1}', title2='{title2}', title3='{title3}'")
+        
         if not title1 and not title2 and not title3:
             return ""
         
@@ -543,7 +550,7 @@ class TemplateVideoEncoder(VideoEncoder):
             if 'template_1_shorts' in current_template:
                 base_y = 150  # 정사각형 크롭은 기본값
             elif 'template_2_shorts' in current_template:
-                base_y = 250  # 좌우 크롭은 상하 여백이 더 큼
+                base_y = 200  # 좌우 크롭은 상하 여백이 더 큼 (250→200으로 조정)
             elif 'template_3_shorts' in current_template:
                 base_y = 350  # 전체 화면은 상하 여백이 가장 큼
             else:
@@ -568,6 +575,7 @@ class TemplateVideoEncoder(VideoEncoder):
                     f"drawtext=text='{text2}':fontfile='{font_file}':fontsize=90:"
                     f"fontcolor=#FFD700:x=(w-text_w)/2:y={y_pos}"
                 )
+                logger.info(f"Adding title2 for shorts: '{title2}' at y={y_pos}")
             
             # 세 번째 줄 (흰색, 60pt, 왼쪽 정렬, 여러 줄 지원)
             if title3:
@@ -587,22 +595,22 @@ class TemplateVideoEncoder(VideoEncoder):
                 )
         else:
             # 일반 템플릿: 좌우 배치, 모두 흰색
-            # 첫 번째 줄 (왼쪽, 흰색)
+            # 첫 번째 줄 (왼쪽 하단, 흰색)
             if title1:
                 # 이스케이프 처리
                 text1 = title1.replace(":", "\\:").replace("'", "\\'")
                 filters.append(
                     f"drawtext=text='{text1}':fontfile='{font_file}':fontsize=40:"
-                    f"fontcolor=white:x=50:y=50"
+                    f"fontcolor=white:x=50:y=h-th-50"
                 )
             
-            # 두 번째 줄 (오른쪽, 흰색)
+            # 두 번째 줄 (오른쪽 하단, 흰색)
             if title2:
                 # 이스케이프 처리
                 text2 = title2.replace(":", "\\:").replace("'", "\\'")
                 filters.append(
                     f"drawtext=text='{text2}':fontfile='{font_file}':fontsize=40:"
-                    f"fontcolor=white:x=w-text_w-50:y=50"
+                    f"fontcolor=white:x=w-text_w-50:y=h-th-50"
                 )
         
         return ",".join(filters)
@@ -636,6 +644,26 @@ class TemplateVideoEncoder(VideoEncoder):
             subtitle_path = subtitle_path.replace(',', '\\,').replace("'", "\\'").replace(' ', '\\ ')
             vf_filters.append(f"ass={subtitle_path}")
             logger.info(f"Adding ASS subtitle filter: ass={subtitle_path}")
+        
+        # 자막 모드 표시 추가 (일반 템플릿 1, 2, 3에서만)
+        current_template = getattr(self, '_current_template_name', '')
+        current_subtitle_mode = getattr(self, '_current_subtitle_mode', '')
+        
+        # 표시할 레이블 가져오기
+        mode_label = self.subtitle_mode_labels.get(current_subtitle_mode, '')
+        
+        # 레이블이 있고, 일반 템플릿인 경우에만 표시
+        if mode_label and ('template_1' in current_template or 'template_2' in current_template or 'template_3' in current_template):
+            if '_shorts' not in current_template:  # 일반 템플릿만 (쇼츠 제외)
+                # 폰트 파일 경로
+                font_file = "/home/kang/.fonts/TmonMonsori.ttf"
+                if not os.path.exists(font_file):
+                    font_file = "NanumGothic"  # 폴백 폰트
+                
+                # 자막 모드 텍스트 추가 (좌측 상단, 페이드인 효과)
+                mode_text = "drawtext=text='{}':fontfile={}:fontsize=70:fontcolor=white@0.8:borderw=3:bordercolor=black:x=80:y=80:alpha='if(lt(t,0.5),t/0.5,1)'".format(mode_label, font_file)
+                vf_filters.append(mode_text)
+                logger.info(f"Adding subtitle mode indicator '{mode_label}' for {current_template}")
         
         # 타이틀 추가
         title_filter = self._get_title_filter()

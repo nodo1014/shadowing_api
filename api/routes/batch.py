@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks
 from typing import Optional
 import uuid
 import logging
+import asyncio
 from datetime import datetime
 from pathlib import Path
 
@@ -210,6 +211,9 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
                 
                 return '\\N'.join(lines)
             
+            # 타이틀 로깅 추가
+            logger.info(f"[Job {job_id}] Clip {clip_num} - title_1: '{request.title_1}', title_2: '{request.title_2}'")
+            
             # 자막 데이터
             subtitle_data = {
                 'start_time': 0,
@@ -308,8 +312,9 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
                         video_files.append(str(full_path))
             
             # 배치 비디오 생성
-            success = await executor.run_in_executor(
-                None,
+            loop = asyncio.get_event_loop()
+            success = await loop.run_in_executor(
+                executor,
                 batch_renderer.create_batch_video,
                 video_files,
                 str(batch_output_path),

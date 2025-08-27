@@ -75,19 +75,19 @@ SUBTITLE_STYLES = {
 #   - 중앙 1080x1080 정사각형 영역이 주요 콘텐츠 영역
 SHORTS_ADJUSTMENTS = {
     "english": {
-        "font_size": 100,  # 모바일 가독성을 위한 크기 (기존 100에서 축소)
+        "font_size": 60,  # 모바일 가독성을 위한 크기 (기존 100에서 축소)
         "margin_v": 450  # 영어가 위 (하단에서 450px 위)
     },
     "korean": {
-        "font_size": 90,  # 영어보다 약간 작게 (기존 90에서 축소)
-        "margin_v": 350  # 한글이 아래 (하단에서 350px 위)
+        "font_size": 50,  # 영어보다 약간 작게 (기존 90에서 축소)
+        "margin_v": 300  # 한글이 아래 (하단에서 350px 위)
     },
     "note": {
-        "font_size": 70,  # 모바일용 축소 (기존 70에서)
+        "font_size": 40,  # 모바일용 축소 (기존 70에서)
         "margin_v": 120  # 상단 여백 증가 (상단 UI 피하기)
     },
     "label": {
-        "font_size": 70,  # 모바일용 축소
+        "font_size": 50,  # 모바일용 축소
         "margin_v": 120  # 상단 여백 증가
     }
 }
@@ -100,7 +100,9 @@ def get_ass_style_format():
 
 def format_ass_style(name: str, style: dict) -> str:
     """스타일 딕셔너리를 ASS 스타일 라인으로 변환"""
-    return "Style: {},{},""{},{},{},{},{},{},0,0,0,100,100,0,0,1,{},{},{},{},{},{},1".format(
+    # Get spacing value, default to 0 if not specified
+    spacing = style.get("spacing", 0)
+    return "Style: {},{},""{},{},{},{},{},{},0,0,0,100,100,{},0,1,{},{},{},{},{},{},1".format(
         name.capitalize(),
         style["font_name"],
         style["font_size"],
@@ -109,6 +111,7 @@ def format_ass_style(name: str, style: dict) -> str:
         style["outline_color"],
         style["back_color"],
         1 if style["bold"] else 0,
+        spacing,  # Character spacing (horizontal spacing between characters)
         style["outline"],
         style["shadow"],
         style["alignment"],

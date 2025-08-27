@@ -431,6 +431,52 @@ class EnhancedBatchRenderer:
             'gpu_enabled': self.gpu_options is not None,
             'workers': self.max_workers
         }
+    
+    def create_batch_video(self, video_files: List[str], output_path: str, 
+                          title_1: str = None, title_2: str = None) -> bool:
+        """개별 비디오 파일들을 하나의 배치 비디오로 결합"""
+        import subprocess
+        import tempfile
+        import os
+        
+        try:
+            if not video_files:
+                logger.error("No video files provided for batch")
+                return False
+            
+            # concat 파일 생성
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+                for video_file in video_files:
+                    # FFmpeg concat demuxer 형식
+                    f.write(f"file '{os.path.abspath(video_file)}'\n")
+                concat_file = f.name
+            
+            # FFmpeg 명령 구성
+            cmd = [
+                'ffmpeg', '-y',
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', concat_file,
+                '-c', 'copy',  # 재인코딩 없이 복사
+                output_path
+            ]
+            
+            logger.info(f"Creating batch video with {len(video_files)} clips")
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            # 임시 파일 삭제
+            os.unlink(concat_file)
+            
+            if result.returncode != 0:
+                logger.error(f"FFmpeg error: {result.stderr}")
+                return False
+            
+            logger.info(f"Batch video created successfully: {output_path}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error creating batch video: {e}")
+            return False
 
 
 class ResourceMonitor:
