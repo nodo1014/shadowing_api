@@ -21,22 +21,28 @@ logger = logging.getLogger(__name__)
 class TemplateStandards:
     """템플릿 시스템 표준 처리 함수"""
     
-    # 표준 설정값들
+    # 표준 설정값들 - 모든 템플릿에서 동일하게 사용
     STANDARD_VIDEO_WIDTH = 1920
     STANDARD_VIDEO_HEIGHT = 1080
-    STANDARD_VIDEO_CRF = 22
-    STANDARD_VIDEO_PRESET = 'medium'
+    STANDARD_VIDEO_CRF = 22  # 모든 템플릿에서 동일한 품질 사용
+    STANDARD_VIDEO_PRESET = 'medium'  # 품질과 속도의 균형
     STANDARD_VIDEO_CODEC = 'libx264'
     STANDARD_PIX_FMT = 'yuv420p'
+    
+    # 비디오 추가 옵션
+    STANDARD_VIDEO_PROFILE = 'high'
+    STANDARD_VIDEO_LEVEL = '4.1'
+    STANDARD_GOP_SIZE = 250  # 키프레임 간격
     
     # 무음 생성용 표준 오디오 설정
     SILENCE_SAMPLE_RATE = 44100
     SILENCE_CHANNELS = 2
     SILENCE_CHANNEL_LAYOUT = 'stereo'
     
-    # 최종 출력용 표준 오디오 설정
-    OUTPUT_SAMPLE_RATE = 48000
+    # 최종 출력용 표준 오디오 설정 - 모든 클립에 적용
+    OUTPUT_SAMPLE_RATE = 48000  # 모든 클립 48kHz로 통일
     OUTPUT_CHANNELS = 2
+    OUTPUT_AUDIO_CODEC = 'aac'
     OUTPUT_AUDIO_BITRATE = '192k'
     
     @staticmethod
@@ -72,6 +78,29 @@ class TemplateStandards:
         
         logger.debug(f"Created silence WAV: {output_path} ({duration}s)")
         return output_path
+    
+    @staticmethod
+    def get_standard_encoding_options() -> List[str]:
+        """
+        모든 템플릿에서 사용할 표준 인코딩 옵션 반환
+        
+        Returns:
+            FFmpeg 인코딩 옵션 리스트
+        """
+        return [
+            '-c:v', TemplateStandards.STANDARD_VIDEO_CODEC,
+            '-preset', TemplateStandards.STANDARD_VIDEO_PRESET,
+            '-crf', str(TemplateStandards.STANDARD_VIDEO_CRF),
+            '-profile:v', TemplateStandards.STANDARD_VIDEO_PROFILE,
+            '-level', TemplateStandards.STANDARD_VIDEO_LEVEL,
+            '-pix_fmt', TemplateStandards.STANDARD_PIX_FMT,
+            '-g', str(TemplateStandards.STANDARD_GOP_SIZE),
+            '-c:a', TemplateStandards.OUTPUT_AUDIO_CODEC,
+            '-b:a', TemplateStandards.OUTPUT_AUDIO_BITRATE,
+            '-ar', str(TemplateStandards.OUTPUT_SAMPLE_RATE),
+            '-ac', str(TemplateStandards.OUTPUT_CHANNELS),
+            '-movflags', '+faststart'
+        ]
     
     @staticmethod
     def create_freeze_frame(video_path: str, frame_time: float, duration: float = 0.5, 

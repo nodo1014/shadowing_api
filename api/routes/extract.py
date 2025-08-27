@@ -99,7 +99,9 @@ async def process_range_extraction(job_id: str, request: ExtractRangeRequest):
         update_job_status_both(job_id, "processing", 20, message="자막 파일 생성 중...")
         
         ass_path = job_dir / "subtitles.ass"
-        create_multi_subtitle_file(ass_path, request.subtitles, request.start_time)
+        # template 10번대는 쇼츠용
+        is_shorts = request.template_number >= 10
+        create_multi_subtitle_file(ass_path, request.subtitles, request.start_time, is_shorts=is_shorts)
         
         # 자막 데이터 준비 (템플릿 인코더용)
         # 전체 구간을 하나의 subtitle_data로 처리
@@ -191,49 +193,46 @@ async def process_range_extraction(job_id: str, request: ExtractRangeRequest):
         )
 
 
-def create_multi_subtitle_file(ass_path: Path, subtitles: List[SubtitleInfo], offset: float):
-    """여러 자막이 포함된 ASS 파일 생성"""
+def create_multi_subtitle_file(ass_path: Path, subtitles: List[SubtitleInfo], offset: float, is_shorts: bool = False):
+    """여러 자막이 포함된 ASS 파일 생성 - ASSGenerator 사용"""
     
-    # ASS 헤더
-    ass_content = """[Script Info]
-Title: Multi-line Subtitles
-ScriptType: v4.00+
-
-[V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: English,나눔고딕,36,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,20,1
-Style: Korean,나눔고딕,28,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,50,1
-
-[Events]
-Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-"""
+    # ASSGenerator를 사용하여 생성
+    generator = ASSGenerator()
     
-    # 각 자막을 ASS 이벤트로 변환
+    # 자막 데이터를 ASSGenerator 형식으로 변환
+    subtitle_data = []
+    
+    # 실제 자막들 추가
     for subtitle in subtitles:
-        # 오프셋을 적용한 시간 (구간 시작을 0으로)
-        start_time = subtitle.start - offset
-        end_time = subtitle.end - offset
-        
-        # 시간 포맷 변환 (초 -> HH:MM:SS.CC)
-        def format_time(seconds):
-            hours = int(seconds // 3600)
-            minutes = int((seconds % 3600) // 60)
-            secs = seconds % 60
-            return f"{hours}:{minutes:02d}:{secs:05.2f}"
-        
-        start_str = format_time(start_time)
-        end_str = format_time(end_time)
-        
-        # 영어 자막
+        sub_dict = {
+            'start_time': subtitle.start - offset,
+            'end_time': subtitle.end - offset
+        }
         if subtitle.eng:
-            ass_content += f"Dialogue: 0,{start_str},{end_str},English,,0,0,0,,{subtitle.eng}\n"
-        
-        # 한글 자막
+            sub_dict['eng'] = subtitle.eng
+            sub_dict['english'] = subtitle.eng  # ASSGenerator 호환성
         if subtitle.kor:
-            ass_content += f"Dialogue: 0,{start_str},{end_str},Korean,,0,0,0,,{subtitle.kor}\n"
+            sub_dict['kor'] = subtitle.kor
+            sub_dict['korean'] = subtitle.kor  # ASSGenerator 호환성
+        
+        subtitle_data.append(sub_dict)
     
-    # 파일 저장
-    with open(ass_path, 'w', encoding='utf-8') as f:
-        f.write(ass_content)
+    # ASS 파일 생성
+    generator.generate_ass(subtitle_data, str(ass_path), is_shorts=is_shorts)
     
-    logger.info(f"Created multi-subtitle file: {ass_path} with {len(subtitles)} subtitles")
+    logger.info(f"Created multi-subtitle file using ASSGenerator: {ass_path} with {len(subtitles)} subtitles")
+
+
+# Alias endpoint for compatibility
+@router.post("/clip/continuous",
+             response_model=ClippingResponse,
+             summary="연속 구간 클립 생성 (alias for extract/range)")
+async def create_continuous_clip(
+    request: ExtractRangeRequest,
+    background_tasks: BackgroundTasks
+):
+    """
+    /extract/range의 alias 엔드포인트입니다.
+    기존 클라이언트와의 호환성을 위해 제공됩니다.
+    """
+    return await extract_range(request, background_tasks)

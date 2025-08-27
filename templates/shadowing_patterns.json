@@ -13,6 +13,24 @@
       ],
       "gap_duration": 0
     },
+    "template_original_shorts": {
+      "name": "Original Style (Shorts)",
+      "description": "쇼츠용 원본 구간 추출 - 정사각형 크롭 및 세로 비율",
+      "clips": [
+        {
+          "subtitle_mode": "both_subtitle",
+          "folder_name": "original_shorts",
+          "count": 1,
+          "subtitle_type": "full"
+        }
+      ],
+      "gap_duration": 0,
+      "video_settings": {
+        "width": 1080,
+        "height": 1920,
+        "aspect_ratio": "9:16"
+      }
+    },
     "template_1": {
       "name": "Progressive Learning",
       "description": "무자막 1회, 블랭크 1회, 블랭크+한글 1회, 영한자막 1회, 무자막 1회",

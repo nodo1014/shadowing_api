@@ -1,58 +1,13 @@
 from typing import List, Dict, Tuple, Optional
 import os
 import re
+from styles import SUBTITLE_STYLES, SHORTS_ADJUSTMENTS, get_ass_styles_section
 
 
 class ASSGenerator:
     def __init__(self):
-        # Default style settings based on README.md specifications
-        self.styles = {
-            "english": {
-                "font_name": "Noto Sans CJK KR",
-                "font_size": 100,  # FHD 기준 적정 크기
-                "bold": True,
-                "primary_color": "&HFFFFFF&",  # White
-                "secondary_color": "&H000000FF",
-                "outline_color": "&H000000&",  # Black outline
-                "back_color": "&H00000000",
-                "outline": 3,  # 두꺼운 테두리
-                "shadow": 0,  # No shadow for clean look
-                "alignment": 2,  # Bottom center
-                "margin_l": 0,
-                "margin_r": 0,
-                "margin_v": 220  # FHD 기준 하단 여백 (220px 위로)
-            },
-            "korean": {
-                "font_name": "Noto Sans CJK KR",
-                "font_size": 90,  # FHD 기준 적정 크기
-                "bold": True,
-                "primary_color": "&H00D7FF&",  # Gold (BGR: 00D7FF = FFD700 in RGB)
-                "secondary_color": "&H000000FF",
-                "outline_color": "&H000000&",  # Black outline
-                "back_color": "&H00000000",
-                "outline": 3,  # 두꺼운 테두리
-                "shadow": 0,  # No shadow for clean look
-                "alignment": 2,  # Bottom center
-                "margin_l": 0,
-                "margin_r": 0,
-                "margin_v": 140  # FHD 기준 하단 여백 (140px 위로, 영어와 80px 간격)
-            },
-            "note": {
-                "font_name": "Noto Sans CJK KR",
-                "font_size": 70,  # FHD 기준 적정 크기
-                "bold": True,  # Bold for maximum thickness
-                "primary_color": "&HFFFFFF&",  # White (BGR: FFFFFF)
-                "secondary_color": "&H000000FF",
-                "outline_color": "&H000000&",  # Black outline
-                "back_color": "&H00000000",
-                "outline": 3,  # 두꺼운 테두리
-                "shadow": 0,  # No shadow for clean look
-                "alignment": 7,  # Top left (7 = top left)
-                "margin_l": 80,  # FHD 기준 좌측 여백
-                "margin_r": 80,
-                "margin_v": 80  # FHD 기준 상단 여백
-            }
-        }
+        # Load style settings from styles.py
+        self.styles = SUBTITLE_STYLES.copy()
         
         # No resolution setting for better scaling across different video resolutions
         self.width = 0
@@ -120,58 +75,9 @@ ScaledBorderAndShadow: yes
         return header
     
     def _generate_styles(self, is_shorts: bool = False) -> str:
-        """Generate styles section"""
-        
-        # 쇼츠용 위치 및 크기 조정
-        if is_shorts:
-            # 정사각형 영역 아래 더 많은 여백
-            # 1080x1920에서 중앙 1080x1080 영역의 하단은 1510px
-            # 유튜브 쇼츠 UI 고려하여 더 아래로 배치
-            eng_margin_v = 360  # 화면 하단에서 360px 위 (영어 자막, 30px 더 위로)
-            kor_margin_v = 220  # 화면 하단에서 220px 위 (한글 자막, 140px 간격)
-            # 쇼츠용 작은 폰트 크기 (모바일 화면에 적합)
-            eng_font_size = 60  # 영어 폰트 크기 축소
-            kor_font_size = 54  # 한글 폰트 크기 축소
-        else:
-            # 일반 영상용 기본값
-            eng_margin_v = self.styles["english"]["margin_v"]
-            kor_margin_v = self.styles["korean"]["margin_v"]
-            eng_font_size = self.styles["english"]["font_size"]
-            kor_font_size = self.styles["korean"]["font_size"]
-        styles = "[V4+ Styles]\n"
-        styles += "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, "
-        styles += "Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, "
-        styles += "Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
-        
-        # English style
-        eng = self.styles["english"]
-        styles += "Style: English,{},{},{},{},{},{},{},0,0,0,100,100,0,0,1,{},{},{},{},{},{},1\n".format(
-            eng["font_name"], eng_font_size, eng["primary_color"], eng["secondary_color"],
-            eng["outline_color"], eng["back_color"], 1 if eng["bold"] else 0,
-            eng["outline"], eng["shadow"], eng["alignment"],
-            eng["margin_l"], eng["margin_r"], eng_margin_v
-        )
-        
-        # Korean style
-        kor = self.styles["korean"]
-        styles += "Style: Korean,{},{},{},{},{},{},{},0,0,0,100,100,0,0,1,{},{},{},{},{},{},1\n".format(
-            kor["font_name"], kor_font_size, kor["primary_color"], kor["secondary_color"],
-            kor["outline_color"], kor["back_color"], 1 if kor["bold"] else 0,
-            kor["outline"], kor["shadow"], kor["alignment"],
-            kor["margin_l"], kor["margin_r"], kor_margin_v
-        )
-        
-        # Note style
-        note = self.styles["note"]
-        styles += "Style: Note,{},{},{},{},{},{},{},0,0,0,100,100,0,0,1,{},{},{},{},{},{},1\n".format(
-            note["font_name"], note["font_size"], note["primary_color"], note["secondary_color"],
-            note["outline_color"], note["back_color"], 1 if note["bold"] else 0,
-            note["outline"], note["shadow"], note["alignment"],
-            note["margin_l"], note["margin_r"], note["margin_v"]
-        )
-        
-        styles += "\n"
-        return styles
+        """Generate styles section using centralized styles.py"""
+        # Note 스타일은 get_ass_styles_section에서 처리되지 않으므로 수동 추가
+        return get_ass_styles_section(is_shorts)
     
     def _generate_events(self, subtitles: List[Dict]) -> str:
         """Generate events section"""

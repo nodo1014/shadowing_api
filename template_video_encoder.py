@@ -13,6 +13,7 @@ from video_encoder import VideoEncoder
 from subtitle_generator import SubtitleGenerator
 from subtitle_pipeline import SubtitlePipeline, SubtitleType
 from img_tts_generator import ImgTTSGenerator
+from template_standards import TemplateStandards
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,7 @@ class TemplateVideoEncoder(VideoEncoder):
                     
                     # Get subtitle file for this clip
                     subtitle_file = subtitle_files.get(clip_config['subtitle_type'])
+                    logger.info(f"Template {template_name}, clip {i+1}: subtitle_type={clip_config['subtitle_type']}, subtitle_file={subtitle_file}")
                     
                     # Store progress info for encoding
                     self._current_clip_index = current_clip_index
@@ -160,11 +162,13 @@ class TemplateVideoEncoder(VideoEncoder):
                             '[0:v][2:v]concat=n=2:v=1:a=0[outv];[1:a][2:a]concat=n=2:v=0:a=1[outa]',
                             '-map', '[outv]',
                             '-map', '[outa]',
-                            '-c:v', 'libx264',
-                            '-preset', 'medium',
-                            '-crf', '22',
-                            '-c:a', 'aac',
-                            '-b:a', '192k',
+                            '-c:v', TemplateStandards.STANDARD_VIDEO_CODEC,
+                            '-preset', TemplateStandards.STANDARD_VIDEO_PRESET,
+                            '-crf', str(TemplateStandards.STANDARD_VIDEO_CRF),
+                            '-c:a', TemplateStandards.OUTPUT_AUDIO_CODEC,
+                            '-b:a', TemplateStandards.OUTPUT_AUDIO_BITRATE,
+                            '-ar', str(TemplateStandards.OUTPUT_SAMPLE_RATE),
+                            '-ac', str(TemplateStandards.OUTPUT_CHANNELS),
                             '-movflags', '+faststart',
                             temp_clips[-1]
                         ]
@@ -207,14 +211,20 @@ class TemplateVideoEncoder(VideoEncoder):
                 if os.path.exists(temp_clip):
                     os.unlink(temp_clip)
             
-            # Clean up subtitle files
-            for subtitle_file in subtitle_files.values():
-                if subtitle_file and os.path.exists(subtitle_file):
-                    os.unlink(subtitle_file)
+            # Clean up subtitle files (temporarily disabled for debugging)
+            # for subtitle_file in subtitle_files.values():
+            #     if subtitle_file and os.path.exists(subtitle_file):
+            #         os.unlink(subtitle_file)
     
     def _prepare_subtitle_files(self, subtitle_data: Dict, template_name: str, clip_duration: float = None, gap_duration: float = 0.0) -> Dict[str, str]:
         """템플릿에 필요한 자막 파일들을 준비 - 새로운 파이프라인 사용"""
         subtitle_files = {}
+        
+        # Template 0 (원본 구간 추출)의 경우 이미 생성된 ASS 파일 사용
+        if subtitle_data.get('template_number') == 0 and 'ass_file' in subtitle_data:
+            subtitle_files['full'] = subtitle_data['ass_file']
+            logger.info(f"Using pre-generated ASS file for template 0: {subtitle_data['ass_file']}")
+            return subtitle_files
         
         # 템플릿에서 필요한 subtitle_type들을 추출
         template = self.templates.get(template_name)
@@ -338,21 +348,23 @@ class TemplateVideoEncoder(VideoEncoder):
             
             # 비디오 설정 (FFmpeg 최적화 옵션 유지)
             cmd.extend([
-                '-c:v', 'libx264',
-                '-preset', 'medium',
-                '-crf', '20',
-                '-profile:v', 'high',
-                '-level', '4.1',
-                '-pix_fmt', 'yuv420p',
+                '-c:v', TemplateStandards.STANDARD_VIDEO_CODEC,
+                '-preset', TemplateStandards.STANDARD_VIDEO_PRESET,
+                '-crf', str(TemplateStandards.STANDARD_VIDEO_CRF),
+                '-profile:v', TemplateStandards.STANDARD_VIDEO_PROFILE,
+                '-level', TemplateStandards.STANDARD_VIDEO_LEVEL,
+                '-pix_fmt', TemplateStandards.STANDARD_PIX_FMT,
                 '-tune', 'film',
-                '-x264opts', 'keyint=240:min-keyint=24:scenecut=40',
+                '-x264opts', f'keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40',
                 '-r', '30'
             ])
             
             # 오디오 설정
             cmd.extend([
-                '-c:a', 'aac',
-                '-b:a', '192k',
+                '-c:a', TemplateStandards.OUTPUT_AUDIO_CODEC,
+                '-b:a', TemplateStandards.OUTPUT_AUDIO_BITRATE,
+                '-ar', str(TemplateStandards.OUTPUT_SAMPLE_RATE),
+                '-ac', str(TemplateStandards.OUTPUT_CHANNELS),
                 '-af', 'aresample=async=1',
                 '-map', '0:v',
                 '-map', '1:a'
@@ -467,16 +479,18 @@ class TemplateVideoEncoder(VideoEncoder):
         
         # 인코딩 설정 (일반 인코딩과 동일하게 통일)
         cmd.extend([
-            '-c:v', 'libx264',
-            '-preset', 'medium',
-            '-crf', '22',
-            '-profile:v', 'high',
-            '-level', '4.1',
-            '-pix_fmt', 'yuv420p',
+            '-c:v', TemplateStandards.STANDARD_VIDEO_CODEC,
+            '-preset', TemplateStandards.STANDARD_VIDEO_PRESET,
+            '-crf', str(TemplateStandards.STANDARD_VIDEO_CRF),
+            '-profile:v', TemplateStandards.STANDARD_VIDEO_PROFILE,
+            '-level', TemplateStandards.STANDARD_VIDEO_LEVEL,
+            '-pix_fmt', TemplateStandards.STANDARD_PIX_FMT,
             '-tune', 'film',
-            '-x264opts', 'keyint=240:min-keyint=24:scenecut=40',
-            '-c:a', 'aac',
-            '-b:a', '192k',
+            '-x264opts', f'keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40',
+            '-c:a', TemplateStandards.OUTPUT_AUDIO_CODEC,
+            '-b:a', TemplateStandards.OUTPUT_AUDIO_BITRATE,
+            '-ar', str(TemplateStandards.OUTPUT_SAMPLE_RATE),
+            '-ac', str(TemplateStandards.OUTPUT_CHANNELS),
             '-movflags', '+faststart',
             output_path
         ])
@@ -597,6 +611,7 @@ class TemplateVideoEncoder(VideoEncoder):
                                start_time: float = None, duration: float = None,
                                subtitle_file: str = None) -> bool:
         """일반 템플릿용 타이틀이 적용된 클립 인코딩"""
+        logger.info(f"_encode_clip_with_title called with subtitle_file: {subtitle_file}")
         cmd = ['ffmpeg', '-y']
         
         if start_time is not None:
@@ -612,8 +627,15 @@ class TemplateVideoEncoder(VideoEncoder):
         
         # 자막 추가
         if subtitle_file and os.path.exists(subtitle_file):
-            subtitle_path = subtitle_file.replace('\\', '/').replace("'", "'\\''")
-            vf_filters.append(f"ass='{subtitle_path}'")
+            # FFmpeg ass 필터를 위한 올바른 이스케이핑
+            abs_path = os.path.abspath(subtitle_file)
+            # Windows 호환을 위해 백슬래시를 슬래시로 변환
+            subtitle_path = abs_path.replace('\\', '/')
+            # FFmpeg ass 필터를 위한 특수 문자 이스케이핑
+            subtitle_path = subtitle_path.replace(':', '\\:').replace('[', '\\[').replace(']', '\\]')
+            subtitle_path = subtitle_path.replace(',', '\\,').replace("'", "\\'").replace(' ', '\\ ')
+            vf_filters.append(f"ass={subtitle_path}")
+            logger.info(f"Adding ASS subtitle filter: ass={subtitle_path}")
         
         # 타이틀 추가
         title_filter = self._get_title_filter()
@@ -621,20 +643,24 @@ class TemplateVideoEncoder(VideoEncoder):
             vf_filters.append(title_filter)
         
         if vf_filters:
-            cmd.extend(['-vf', ','.join(vf_filters)])
+            vf_string = ','.join(vf_filters)
+            cmd.extend(['-vf', vf_string])
+            logger.info(f"Video filters applied: {vf_string}")
         
         # 인코딩 설정
         cmd.extend([
-            '-c:v', 'libx264',
-            '-preset', 'medium',
-            '-crf', '22',
-            '-profile:v', 'high',
-            '-level', '4.1',
-            '-pix_fmt', 'yuv420p',
+            '-c:v', TemplateStandards.STANDARD_VIDEO_CODEC,
+            '-preset', TemplateStandards.STANDARD_VIDEO_PRESET,
+            '-crf', str(TemplateStandards.STANDARD_VIDEO_CRF),
+            '-profile:v', TemplateStandards.STANDARD_VIDEO_PROFILE,
+            '-level', TemplateStandards.STANDARD_VIDEO_LEVEL,
+            '-pix_fmt', TemplateStandards.STANDARD_PIX_FMT,
             '-tune', 'film',
-            '-x264opts', 'keyint=240:min-keyint=24:scenecut=40',
-            '-c:a', 'aac',
-            '-b:a', '192k',
+            '-x264opts', f'keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40',
+            '-c:a', TemplateStandards.OUTPUT_AUDIO_CODEC,
+            '-b:a', TemplateStandards.OUTPUT_AUDIO_BITRATE,
+            '-ar', str(TemplateStandards.OUTPUT_SAMPLE_RATE),
+            '-ac', str(TemplateStandards.OUTPUT_CHANNELS),
             '-movflags', '+faststart',
             output_path
         ])
@@ -834,16 +860,18 @@ asyncio.run(main())
         
         # 인코딩 설정
         cmd.extend([
-            '-c:v', 'libx264',
-            '-preset', 'medium',
-            '-crf', '22',
-            '-profile:v', 'high',
-            '-level', '4.1',
-            '-pix_fmt', 'yuv420p',
+            '-c:v', TemplateStandards.STANDARD_VIDEO_CODEC,
+            '-preset', TemplateStandards.STANDARD_VIDEO_PRESET,
+            '-crf', str(TemplateStandards.STANDARD_VIDEO_CRF),
+            '-profile:v', TemplateStandards.STANDARD_VIDEO_PROFILE,
+            '-level', TemplateStandards.STANDARD_VIDEO_LEVEL,
+            '-pix_fmt', TemplateStandards.STANDARD_PIX_FMT,
             '-tune', 'film',
-            '-x264opts', 'keyint=240:min-keyint=24:scenecut=40',
-            '-c:a', 'aac',
-            '-b:a', '192k',
+            '-x264opts', f'keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40',
+            '-c:a', TemplateStandards.OUTPUT_AUDIO_CODEC,
+            '-b:a', TemplateStandards.OUTPUT_AUDIO_BITRATE,
+            '-ar', str(TemplateStandards.OUTPUT_SAMPLE_RATE),
+            '-ac', str(TemplateStandards.OUTPUT_CHANNELS),
             '-movflags', '+faststart',
             output_path
         ])

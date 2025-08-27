@@ -18,6 +18,7 @@ import asyncio
 from pathlib import Path
 from typing import Optional, Dict, List, Union
 from edge_tts_util import EdgeTTSGenerator
+from template_standards import TemplateStandards
 
 logger = logging.getLogger(__name__)
 
@@ -460,14 +461,16 @@ class ImgTTSGenerator:
         
         # 인코딩 설정
         cmd.extend([
-            '-c:v', 'libx264',
-            '-preset', 'medium',
-            '-crf', '22',
-            '-profile:v', 'high',
-            '-level', '4.1',
-            '-pix_fmt', 'yuv420p',
-            '-c:a', 'aac',
-            '-b:a', '192k',
+            '-c:v', TemplateStandards.STANDARD_VIDEO_CODEC,
+            '-preset', TemplateStandards.STANDARD_VIDEO_PRESET,
+            '-crf', str(TemplateStandards.STANDARD_VIDEO_CRF),
+            '-profile:v', TemplateStandards.STANDARD_VIDEO_PROFILE,
+            '-level', TemplateStandards.STANDARD_VIDEO_LEVEL,
+            '-pix_fmt', TemplateStandards.STANDARD_PIX_FMT,
+            '-c:a', TemplateStandards.OUTPUT_AUDIO_CODEC,
+            '-b:a', TemplateStandards.OUTPUT_AUDIO_BITRATE,
+            '-ar', str(TemplateStandards.OUTPUT_SAMPLE_RATE),
+            '-ac', str(TemplateStandards.OUTPUT_CHANNELS),
             '-shortest',
             '-movflags', '+faststart',
             output_path

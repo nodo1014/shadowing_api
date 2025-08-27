@@ -53,6 +53,7 @@ TEMPLATE_MAPPING = {
     3: "template_3",
     
     # 쇼츠 템플릿
+    10: "template_original_shorts",
     11: "template_1_shorts",
     12: "template_2_shorts",
     13: "template_3_shorts",

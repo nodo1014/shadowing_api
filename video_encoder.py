@@ -8,6 +8,7 @@ import logging
 from pathlib import Path
 from typing import List, Dict, Optional
 from subtitle_pipeline import SubtitlePipeline, SubtitleType
+from template_standards import TemplateStandards
 
 logger = logging.getLogger(__name__)
 
@@ -15,36 +16,36 @@ logger = logging.getLogger(__name__)
 class VideoEncoder:
     def __init__(self):
         self.process_timeout = 300  # 5 minutes timeout for FFmpeg operations
-        # FFmpeg encoding settings based on ffmpeg_ass설정값.md
+        # FFmpeg encoding settings - use standardized values
         self.encoding_settings = {
             "no_subtitle": {
-                "video_codec": "libx264",
-                "preset": "medium",  # 품질/속도 균형: ultrafast -> medium
-                "crf": "24",  # 테스트용 품질
-                "profile": "high",
-                "level": "4.1",
-                "pix_fmt": "yuv420p",
-                "width": "1920",
-                "height": "1080",
-                "audio_codec": "aac",
-                "audio_bitrate": "192k",
+                "video_codec": TemplateStandards.STANDARD_VIDEO_CODEC,
+                "preset": TemplateStandards.STANDARD_VIDEO_PRESET,
+                "crf": str(TemplateStandards.STANDARD_VIDEO_CRF),
+                "profile": TemplateStandards.STANDARD_VIDEO_PROFILE,
+                "level": TemplateStandards.STANDARD_VIDEO_LEVEL,
+                "pix_fmt": TemplateStandards.STANDARD_PIX_FMT,
+                "width": str(TemplateStandards.STANDARD_VIDEO_WIDTH),
+                "height": str(TemplateStandards.STANDARD_VIDEO_HEIGHT),
+                "audio_codec": TemplateStandards.OUTPUT_AUDIO_CODEC,
+                "audio_bitrate": TemplateStandards.OUTPUT_AUDIO_BITRATE,
                 # 추가 품질 옵션
-                "x264opts": "keyint=240:min-keyint=24:scenecut=40",
+                "x264opts": f"keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40",
                 "tune": "film"  # 영화/드라마에 최적화
             },
             "with_subtitle": {
-                "video_codec": "libx264",
-                "preset": "medium",  # 품질/속도 균형: ultrafast -> medium
-                "crf": "24",  # 테스트용 품질
-                "profile": "high",
-                "level": "4.1",
-                "pix_fmt": "yuv420p",
-                "width": "1920",
-                "height": "1080",
-                "audio_codec": "aac",
-                "audio_bitrate": "192k",
+                "video_codec": TemplateStandards.STANDARD_VIDEO_CODEC,
+                "preset": TemplateStandards.STANDARD_VIDEO_PRESET,
+                "crf": str(TemplateStandards.STANDARD_VIDEO_CRF),
+                "profile": TemplateStandards.STANDARD_VIDEO_PROFILE,
+                "level": TemplateStandards.STANDARD_VIDEO_LEVEL,
+                "pix_fmt": TemplateStandards.STANDARD_PIX_FMT,
+                "width": str(TemplateStandards.STANDARD_VIDEO_WIDTH),
+                "height": str(TemplateStandards.STANDARD_VIDEO_HEIGHT),
+                "audio_codec": TemplateStandards.OUTPUT_AUDIO_CODEC,
+                "audio_bitrate": TemplateStandards.OUTPUT_AUDIO_BITRATE,
                 # 추가 품질 옵션
-                "x264opts": "keyint=240:min-keyint=24:scenecut=40",
+                "x264opts": f"keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40",
                 "tune": "film"  # 영화/드라마에 최적화
             }
         }
@@ -412,7 +413,9 @@ class VideoEncoder:
         # Audio encoding settings
         cmd.extend([
             '-c:a', settings['audio_codec'],
-            '-b:a', settings['audio_bitrate']
+            '-b:a', settings['audio_bitrate'],
+            '-ar', str(TemplateStandards.OUTPUT_SAMPLE_RATE),  # 48kHz
+            '-ac', str(TemplateStandards.OUTPUT_CHANNELS)  # stereo
         ])
         
         # Output settings
@@ -545,11 +548,11 @@ class VideoEncoder:
                         silence_cmd = [
                             'ffmpeg', '-y',
                             '-f', 'lavfi',
-                            '-i', f'anullsrc=channel_layout=stereo:sample_rate=44100',
+                            '-i', f'anullsrc=channel_layout={TemplateStandards.SILENCE_CHANNEL_LAYOUT}:sample_rate={TemplateStandards.SILENCE_SAMPLE_RATE}',
                             '-t', str(gap_duration),
                             '-acodec', 'pcm_s16le',
-                            '-ar', '44100',
-                            '-ac', '2',
+                            '-ar', str(TemplateStandards.SILENCE_SAMPLE_RATE),
+                            '-ac', str(TemplateStandards.SILENCE_CHANNELS),
                             silence_wav.name
                         ]
                         
@@ -563,14 +566,14 @@ class VideoEncoder:
                             '-i', silence_wav.name,
                             '-t', str(gap_duration),
                             '-vf', f'scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2',
-                            '-c:v', 'libx264',
-                            '-preset', 'veryfast',
-                            '-crf', '22',
-                            '-pix_fmt', 'yuv420p',
-                            '-c:a', 'aac',
-                            '-b:a', '128k',
-                            '-ar', '44100',
-                            '-ac', '2',
+                            '-c:v', TemplateStandards.STANDARD_VIDEO_CODEC,
+                            '-preset', TemplateStandards.STANDARD_VIDEO_PRESET,
+                            '-crf', str(TemplateStandards.STANDARD_VIDEO_CRF),
+                            '-pix_fmt', TemplateStandards.STANDARD_PIX_FMT,
+                            '-c:a', TemplateStandards.OUTPUT_AUDIO_CODEC,
+                            '-b:a', TemplateStandards.OUTPUT_AUDIO_BITRATE,
+                            '-ar', str(TemplateStandards.OUTPUT_SAMPLE_RATE),
+                            '-ac', str(TemplateStandards.OUTPUT_CHANNELS),
                             '-shortest',
                             freeze_file.name
                         ]
@@ -582,15 +585,15 @@ class VideoEncoder:
                             '-i', clip_path,
                             '-t', str(gap_duration),
                             '-vf', f'select=\'eq(n\\,0)\',scale={width}:{height},setpts=N/TB',
-                            '-af', f'anullsrc=channel_layout=stereo:sample_rate=44100',
-                            '-c:v', 'libx264',
-                            '-preset', 'veryfast',
-                            '-crf', '22',
-                            '-pix_fmt', 'yuv420p',
-                            '-c:a', 'aac',
-                            '-b:a', '128k',
-                            '-ar', '44100',
-                            '-ac', '2',
+                            '-af', f'anullsrc=channel_layout={TemplateStandards.SILENCE_CHANNEL_LAYOUT}:sample_rate={TemplateStandards.SILENCE_SAMPLE_RATE}',
+                            '-c:v', TemplateStandards.STANDARD_VIDEO_CODEC,
+                            '-preset', TemplateStandards.STANDARD_VIDEO_PRESET,
+                            '-crf', str(TemplateStandards.STANDARD_VIDEO_CRF),
+                            '-pix_fmt', TemplateStandards.STANDARD_PIX_FMT,
+                            '-c:a', TemplateStandards.OUTPUT_AUDIO_CODEC,
+                            '-b:a', TemplateStandards.OUTPUT_AUDIO_BITRATE,
+                            '-ar', str(TemplateStandards.OUTPUT_SAMPLE_RATE),
+                            '-ac', str(TemplateStandards.OUTPUT_CHANNELS),
                             freeze_file.name
                         ]
                     
@@ -614,11 +617,11 @@ class VideoEncoder:
                         simple_silence_cmd = [
                             'ffmpeg', '-y',
                             '-f', 'lavfi',
-                            '-i', f'anullsrc=channel_layout=stereo:sample_rate=44100',
+                            '-i', f'anullsrc=channel_layout={TemplateStandards.SILENCE_CHANNEL_LAYOUT}:sample_rate={TemplateStandards.SILENCE_SAMPLE_RATE}',
                             '-t', str(gap_duration),
                             '-acodec', 'pcm_s16le',
-                            '-ar', '44100',
-                            '-ac', '2',
+                            '-ar', str(TemplateStandards.SILENCE_SAMPLE_RATE),
+                            '-ac', str(TemplateStandards.SILENCE_CHANNELS),
                             simple_silence_wav.name
                         ]
                         subprocess.run(simple_silence_cmd, capture_output=True, text=True)
@@ -632,12 +635,14 @@ class VideoEncoder:
                             '-vf', f'select=\'eq(n\\,0)\',scale={width}:{height}',
                             '-map', '0:v',
                             '-map', '1:a',
-                            '-c:v', 'libx264',
-                            '-preset', 'veryfast',
-                            '-crf', '22',
-                            '-pix_fmt', 'yuv420p',
-                            '-c:a', 'aac',
-                            '-b:a', '128k',
+                            '-c:v', TemplateStandards.STANDARD_VIDEO_CODEC,
+                            '-preset', TemplateStandards.STANDARD_VIDEO_PRESET,
+                            '-crf', str(TemplateStandards.STANDARD_VIDEO_CRF),
+                            '-pix_fmt', TemplateStandards.STANDARD_PIX_FMT,
+                            '-c:a', TemplateStandards.OUTPUT_AUDIO_CODEC,
+                            '-b:a', TemplateStandards.OUTPUT_AUDIO_BITRATE,
+                            '-ar', str(TemplateStandards.OUTPUT_SAMPLE_RATE),
+                            '-ac', str(TemplateStandards.OUTPUT_CHANNELS),
                             freeze_file.name
                         ]
                         
@@ -658,10 +663,10 @@ class VideoEncoder:
                 '-safe', '0',
                 '-i', concat_file.name,
                 '-c:v', 'copy',
-                '-c:a', 'aac',
-                '-b:a', '192k',
-                '-ar', '44100',
-                '-ac', '2',
+                '-c:a', TemplateStandards.OUTPUT_AUDIO_CODEC,
+                '-b:a', TemplateStandards.OUTPUT_AUDIO_BITRATE,
+                '-ar', str(TemplateStandards.OUTPUT_SAMPLE_RATE),
+                '-ac', str(TemplateStandards.OUTPUT_CHANNELS),
                 '-af', 'aresample=async=1:min_hard_comp=0.100000:first_pts=0',
                 output_path
             ]
