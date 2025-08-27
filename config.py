@@ -70,7 +70,7 @@ FFMPEG_ENCODING_SETTINGS = {
     "no_subtitle": {
         "video_codec": "libx264",
         "preset": "medium",
-        "crf": "16",
+        "crf": "22",
         "profile": "high",
         "level": "4.1",
         "pix_fmt": "yuv420p",
@@ -84,7 +84,7 @@ FFMPEG_ENCODING_SETTINGS = {
     "with_subtitle": {
         "video_codec": "libx264",
         "preset": "medium",
-        "crf": "16",
+        "crf": "22",
         "profile": "high",
         "level": "4.1",
         "pix_fmt": "yuv420p",

@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>비디오 플레이어 - Shadowing Maker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background-color: #0f0f0f;
+            color: #fff;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .video-section {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 24px;
+        }
+        
+        .main-video {
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .video-player {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #000;
+        }
+        
+        .video-info {
+            padding: 16px 0;
+        }
+        
+        .video-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+        
+        .video-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #aaa;
+            font-size: 14px;
+        }
+        
+        .video-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #333;
+        }
+        
+        .action-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: #272727;
+            border: none;
+            border-radius: 20px;
+            color: #fff;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .action-btn:hover {
+            background: #3a3a3a;
+        }
+        
+        .download-btn {
+            background: #3ea6ff;
+            color: #000;
+            font-weight: 600;
+        }
+        
+        .download-btn:hover {
+            background: #65b8ff;
+        }
+        
+        .sidebar {
+            background: #0f0f0f;
+        }
+        
+        .sidebar-header {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            padding: 0 8px;
+        }
+        
+        .video-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .video-item {
+            display: grid;
+            grid-template-columns: 160px 1fr;
+            gap: 12px;
+            padding: 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .video-item:hover {
+            background: #272727;
+        }
+        
+        .video-item.active {
+            background: #3a3a3a;
+        }
+        
+        .video-thumbnail {
+            width: 160px;
+            height: 90px;
+            background: #272727;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .video-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .video-duration {
+            position: absolute;
+            bottom: 4px;
+            right: 4px;
+            background: rgba(0,0,0,0.8);
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .video-item-info {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .video-item-title {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 4px;
+            line-height: 1.4;
+        }
+        
+        .video-item-meta {
+            font-size: 12px;
+            color: #aaa;
+        }
+        
+        .template-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            background: #272727;
+            border-radius: 4px;
+            font-size: 11px;
+            margin-left: 8px;
+        }
+        
+        .template-shorts {
+            background: #ff0000;
+            color: #fff;
+        }
+        
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+            color: #666;
+        }
+        
+        .error {
+            padding: 20px;
+            background: #3a1515;
+            border-radius: 8px;
+            color: #ff6b6b;
+            margin: 20px 0;
+        }
+        
+        @media (max-width: 1200px) {
+            .video-section {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                margin-top: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="video-section">
+            <div class="main-video">
+                <div class="video-player">
+                    <video id="mainVideo" controls autoplay>
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+                <div class="video-info">
+                    <h1 class="video-title" id="videoTitle">비디오를 선택하세요</h1>
+                    <div class="video-meta">
+                        <span id="videoDate">-</span>
+                        <span>•</span>
+                        <span id="videoTemplate">-</span>
+                    </div>
+                    <div class="video-actions">
+                        <button class="action-btn download-btn" id="downloadBtn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2L12 16M12 16L6 10M12 16L18 10M4 20H20"/>
+                            </svg>
+                            다운로드
+                        </button>
+                        <button class="action-btn" id="copyLinkBtn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                            </svg>
+                            링크 복사
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="sidebar">
+                <h2 class="sidebar-header">최근 생성된 비디오</h2>
+                <div class="video-list" id="videoList">
+                    <div class="loading">비디오 목록을 불러오는 중...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentJobId = null;
+        
+        // URL 파라미터에서 job_id 가져오기
+        const urlParams = new URLSearchParams(window.location.search);
+        const jobIdFromUrl = urlParams.get('job_id');
+        
+        // 비디오 목록 로드
+        async function loadVideoList() {
+            try {
+                const response = await fetch('/api/jobs/recent?limit=20');
+                const jobs = await response.json();
+                
+                const videoListEl = document.getElementById('videoList');
+                
+                if (jobs.length === 0) {
+                    videoListEl.innerHTML = '<div class="error">생성된 비디오가 없습니다.</div>';
+                    return;
+                }
+                
+                videoListEl.innerHTML = jobs.map(job => {
+                    if (job.status !== 'completed') return '';
+                    
+                    const isShorts = job.template_number >= 11;
+                    const templateName = isShorts ? 
+                        `템플릿 ${job.template_number - 10}` : 
+                        `템플릿 ${job.template_number}`;
+                    
+                    return `
+                        <div class="video-item ${job.job_id === currentJobId ? 'active' : ''}" 
+                             data-job-id="${job.job_id}"
+                             onclick="loadVideo('${job.job_id}')">
+                            <div class="video-thumbnail">
+                                <img src="/api/thumbnail/${job.job_id}" 
+                                     onerror="this.style.display='none'">
+                                <span class="video-duration">5:00</span>
+                            </div>
+                            <div class="video-item-info">
+                                <div class="video-item-title">
+                                    ${job.output_file ? job.output_file.split('/').pop() : 'Untitled'}
+                                    ${isShorts ? '<span class="template-badge template-shorts">Shorts</span>' : ''}
+                                </div>
+                                <div class="video-item-meta">
+                                    ${templateName} • ${formatDate(job.created_at)}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).filter(Boolean).join('');
+                
+                // URL에 job_id가 있으면 해당 비디오 로드
+                if (jobIdFromUrl && jobs.some(job => job.job_id === jobIdFromUrl)) {
+                    loadVideo(jobIdFromUrl);
+                } else if (jobs.length > 0) {
+                    // 첫 번째 완료된 비디오 자동 로드
+                    const firstCompleted = jobs.find(job => job.status === 'completed');
+                    if (firstCompleted) {
+                        loadVideo(firstCompleted.job_id);
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Failed to load video list:', error);
+                document.getElementById('videoList').innerHTML = 
+                    '<div class="error">비디오 목록을 불러올 수 없습니다.</div>';
+            }
+        }
+        
+        // 비디오 로드
+        async function loadVideo(jobId) {
+            currentJobId = jobId;
+            
+            // 활성 상태 업데이트
+            document.querySelectorAll('.video-item').forEach(item => {
+                item.classList.toggle('active', item.dataset.jobId === jobId);
+            });
+            
+            try {
+                // 작업 정보 가져오기
+                const response = await fetch(`/api/status/${jobId}`);
+                const jobInfo = await response.json();
+                
+                if (jobInfo.status !== 'completed') {
+                    throw new Error('비디오가 아직 처리 중입니다.');
+                }
+                
+                // 비디오 플레이어 업데이트
+                const video = document.getElementById('mainVideo');
+                video.src = `/api/video/${jobId}`;
+                
+                // 비디오 정보 업데이트
+                const filename = jobInfo.output_file ? jobInfo.output_file.split('/').pop() : 'Untitled';
+                document.getElementById('videoTitle').textContent = filename;
+                
+                const isShorts = jobInfo.template_number >= 11;
+                const templateText = isShorts ? 
+                    `Shorts 템플릿 ${jobInfo.template_number - 10}` : 
+                    `템플릿 ${jobInfo.template_number || '-'}`;
+                document.getElementById('videoTemplate').textContent = templateText;
+                
+                document.getElementById('videoDate').textContent = 
+                    formatDate(jobInfo.created_at || new Date().toISOString());
+                
+                // URL 업데이트
+                const newUrl = new URL(window.location);
+                newUrl.searchParams.set('job_id', jobId);
+                window.history.pushState({}, '', newUrl);
+                
+            } catch (error) {
+                console.error('Failed to load video:', error);
+                alert('비디오를 불러올 수 없습니다: ' + error.message);
+            }
+        }
+        
+        // 날짜 포맷
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diff = now - date;
+            
+            if (diff < 3600000) {
+                const minutes = Math.floor(diff / 60000);
+                return `${minutes}분 전`;
+            } else if (diff < 86400000) {
+                const hours = Math.floor(diff / 3600000);
+                return `${hours}시간 전`;
+            } else {
+                return date.toLocaleDateString('ko-KR');
+            }
+        }
+        
+        // 다운로드 버튼
+        document.getElementById('downloadBtn').addEventListener('click', () => {
+            if (currentJobId) {
+                window.location.href = `/api/download/${currentJobId}`;
+            }
+        });
+        
+        // 링크 복사 버튼
+        document.getElementById('copyLinkBtn').addEventListener('click', async () => {
+            if (currentJobId) {
+                const url = new URL(window.location);
+                url.searchParams.set('job_id', currentJobId);
+                
+                try {
+                    await navigator.clipboard.writeText(url.toString());
+                    alert('링크가 복사되었습니다!');
+                } catch (err) {
+                    console.error('Failed to copy:', err);
+                }
+            }
+        });
+        
+        // 초기 로드
+        loadVideoList();
+    </script>
+</body>
+</html>

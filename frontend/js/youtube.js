@@ -7,11 +7,6 @@ let youtubeChannel = null;
 async function checkYouTubeAuth() {
     try {
         const response = await fetch(`${API_BASE_URL}/api/youtube/status`);
-        if (!response.ok) {
-            // YouTube API가 없는 경우 기본값 반환
-            console.warn('YouTube API not available');
-            return false;
-        }
         const data = await response.json();
         
         youtubeAuthenticated = data.authenticated;

@@ -7,6 +7,8 @@ import time
 import logging
 from pathlib import Path
 from typing import List, Dict, Optional
+from subtitle_pipeline import SubtitlePipeline, SubtitleType
+from template_standards import TemplateStandards
 
 logger = logging.getLogger(__name__)
 
@@ -14,65 +16,37 @@ logger = logging.getLogger(__name__)
 class VideoEncoder:
     def __init__(self):
         self.process_timeout = 300  # 5 minutes timeout for FFmpeg operations
-        # FFmpeg encoding settings based on ffmpeg_ass설정값.md
+        # FFmpeg encoding settings - use standardized values
         self.encoding_settings = {
             "no_subtitle": {
-                "video_codec": "libx264",
-                "preset": "medium",  # 품질/속도 균형: ultrafast -> medium
-                "crf": "16",  # 품질 개선: 16 -> 18 (적절한 품질/파일크기 균형)
-                "profile": "high",
-                "level": "4.1",
-                "pix_fmt": "yuv420p",
-                "width": "1920",
-                "height": "1080",
-                "audio_codec": "aac",
-                "audio_bitrate": "192k",
+                "video_codec": TemplateStandards.STANDARD_VIDEO_CODEC,
+                "preset": TemplateStandards.STANDARD_VIDEO_PRESET,
+                "crf": str(TemplateStandards.STANDARD_VIDEO_CRF),
+                "profile": TemplateStandards.STANDARD_VIDEO_PROFILE,
+                "level": TemplateStandards.STANDARD_VIDEO_LEVEL,
+                "pix_fmt": TemplateStandards.STANDARD_PIX_FMT,
+                "width": str(TemplateStandards.STANDARD_VIDEO_WIDTH),
+                "height": str(TemplateStandards.STANDARD_VIDEO_HEIGHT),
+                "audio_codec": TemplateStandards.OUTPUT_AUDIO_CODEC,
+                "audio_bitrate": TemplateStandards.OUTPUT_AUDIO_BITRATE,
                 # 추가 품질 옵션
-                "x264opts": "keyint=240:min-keyint=24:scenecut=40",
+                "x264opts": f"keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40",
                 "tune": "film"  # 영화/드라마에 최적화
             },
             "with_subtitle": {
-                "video_codec": "libx264",
-                "preset": "slow",  # 자막 렌더링 품질 향상
-                "crf": "18",  # 약간 높여서 부드러운 렌더링
-                "profile": "high",
-                "level": "4.1",
-                "pix_fmt": "yuv420p",
-                "width": "1920",
-                "height": "1080",
-                "audio_codec": "aac",
-                "audio_bitrate": "192k",
-                # 추가 품질 옵션 - 자막에 최적화
-                "x264opts": "keyint=240:min-keyint=24:scenecut=40:deblock=-1,-1",
-                "tune": "animation"  # 자막/텍스트에 더 적합
-            },
-            "shorts_no_subtitle": {
-                "video_codec": "libx264",
-                "preset": "medium",
-                "crf": "18",
-                "profile": "high",
-                "level": "4.1",
-                "pix_fmt": "yuv420p",
-                "width": "1080",
-                "height": "1920",
-                "audio_codec": "aac",
-                "audio_bitrate": "192k",
-                "x264opts": "keyint=240:min-keyint=24:scenecut=40",
-                "tune": "film"
-            },
-            "shorts_with_subtitle": {
-                "video_codec": "libx264",
-                "preset": "slow",
-                "crf": "18",
-                "profile": "high",
-                "level": "4.1",
-                "pix_fmt": "yuv420p",
-                "width": "1080",
-                "height": "1920",
-                "audio_codec": "aac",
-                "audio_bitrate": "192k",
-                "x264opts": "keyint=240:min-keyint=24:scenecut=40:deblock=-1,-1",
-                "tune": "animation"
+                "video_codec": TemplateStandards.STANDARD_VIDEO_CODEC,
+                "preset": TemplateStandards.STANDARD_VIDEO_PRESET,
+                "crf": str(TemplateStandards.STANDARD_VIDEO_CRF),
+                "profile": TemplateStandards.STANDARD_VIDEO_PROFILE,
+                "level": TemplateStandards.STANDARD_VIDEO_LEVEL,
+                "pix_fmt": TemplateStandards.STANDARD_PIX_FMT,
+                "width": str(TemplateStandards.STANDARD_VIDEO_WIDTH),
+                "height": str(TemplateStandards.STANDARD_VIDEO_HEIGHT),
+                "audio_codec": TemplateStandards.OUTPUT_AUDIO_CODEC,
+                "audio_bitrate": TemplateStandards.OUTPUT_AUDIO_BITRATE,
+                # 추가 품질 옵션
+                "x264opts": f"keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40",
+                "tune": "film"  # 영화/드라마에 최적화
             }
         }
         
@@ -255,30 +229,16 @@ class VideoEncoder:
             clip_number = Path(output_path).stem.split('_')[-1] if '_' in Path(output_path).stem else '0000'
             clip_index = 1
             
-            # 1. Create no-subtitle clips with "자막 없이 듣기" notice
+            # 1. Create no-subtitle clips
             for i in range(self.pattern["no_subtitle"]):
                 temp_file = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
                 temp_clips.append(temp_file.name)
                 temp_file.close()
                 
-                # Create ASS file with "자막 없이 듣기" notice
-                temp_notice_ass = tempfile.NamedTemporaryFile(suffix='_notice.ass', delete=False)
-                temp_notice_ass.close()
-                
-                from ass_generator import ASSGenerator
-                notice_generator = ASSGenerator()
-                # Generate notice ASS file with duration if available
-                notice_duration = duration if duration else 5.0
-                notice_generator.generate_no_subtitle_notice(temp_notice_ass.name, notice_duration)
-                
                 if not self._encode_clip(media_path, temp_clips[-1], 
                                        padded_start, duration, 
-                                       subtitle_file=temp_notice_ass.name):
+                                       subtitle_file=None):
                     raise Exception(f"Failed to create no-subtitle clip {i+1}")
-                
-                # Clean up notice ASS file
-                if os.path.exists(temp_notice_ass.name):
-                    os.unlink(temp_notice_ass.name)
                 
                 # Save individual clip if requested
                 if save_individual_clips:
@@ -368,14 +328,11 @@ class VideoEncoder:
     
     def _encode_clip(self, input_path: str, output_path: str, 
                     start_time: Optional[float], duration: Optional[float], 
-                    subtitle_file: Optional[str], is_shorts: bool = False) -> bool:
+                    subtitle_file: Optional[str]) -> bool:
         """Encode a single clip with or without subtitles"""
         
         # Choose encoding settings
-        if is_shorts:
-            settings = self.encoding_settings["shorts_with_subtitle" if subtitle_file else "shorts_no_subtitle"]
-        else:
-            settings = self.encoding_settings["with_subtitle" if subtitle_file else "no_subtitle"]
+        settings = self.encoding_settings["with_subtitle" if subtitle_file else "no_subtitle"]
         
         # Build FFmpeg command
         cmd = ['ffmpeg', '-y']  # -y for overwrite
@@ -390,47 +347,39 @@ class VideoEncoder:
         if duration is not None:
             cmd.extend(['-t', str(duration)])
         
-        # Video filter for subtitles and scaling
-        # Check if this is shorts format
-        is_shorts = settings.get('width') == '1080' and settings.get('height') == '1920'
+        # Video filter for subtitles and scaling with aspect ratio preservation
+        # Removed setsar=1 to preserve original pixel aspect ratio
+        video_filter = f"scale={settings['width']}:{settings['height']}:force_original_aspect_ratio=decrease,pad={settings['width']}:{settings['height']}:(ow-iw)/2:(oh-ih)/2:black"
         
-        if is_shorts:
-            # Shorts video processing options
-            shorts_mode = getattr(self, 'shorts_video_mode', 'crop')  # fit, crop, zoom, blur_background
+        # Add text overlays for non-shorts clips
+        if not hasattr(self, '_is_shorts_encoding'):
+            # Add "무자막 모드" text for no-subtitle clips
+            if not subtitle_file:
+                # Add drawtext filter for "무자막 모드" in top-left with fade in
+                video_filter += ",drawtext=text='무자막 모드':fontfile=/home/kang/.fonts/TmonMonsori.ttf:fontsize=70:fontcolor=white@0.8:borderw=3:bordercolor=black:x=80:y=80:alpha='if(lt(t,0.5),t/0.5,1)'"
             
-            if shorts_mode == 'center_crop':
-                # 중앙 크롭: 높이를 1920으로 맞추고 중앙 1080px만 크롭
-                video_filter = "scale=-1:1920,crop=1080:1920,setsar=1"
-            elif shorts_mode == 'fit':
-                # 전체 화면 축소: 원본 비율 유지하며 화면 높이의 50% (960픽셀)로 배치
-                # 위쪽 여백 20% (384픽셀), 아래쪽 여백 30% (576픽셀)
-                # 원본이 1920x804이므로 높이 960으로 맞추면 폭은 약 2291이 되어 1080보다 큼
-                # 따라서 폭을 1080으로 제한하고 높이를 그에 맞춰 조정
-                # pad에서 y좌표를 384로 설정하여 위쪽에서 20% 떨어진 곳에 배치
-                video_filter = "scale=-1:960,crop=1080:960:(iw-1080)/2:0,pad=1080:1920:0:384:black,setsar=1"
-            elif shorts_mode == 'crop_left':
-                # Left crop: 왼쪽 인물 중심 크롭
-                video_filter = "scale=-1:1920,crop=1080:1920:0:0"
-            elif shorts_mode == 'crop_right':
-                # Right crop: 오른쪽 인물 중심 크롭
-                video_filter = "scale=-1:1920,crop=1080:1920:ow-1080:0"
-            elif shorts_mode == 'zoom':
-                # Zoom and crop: 약간 확대 후 크롭 (인물 클로즈업용)
-                # 1.2배 확대 후 크롭
-                video_filter = "scale=1920*1.2:-1,crop=1080:1920:(ow-1080)/2:0"
-            elif shorts_mode == 'blur_background':
-                # 블러 배경: 원본을 흐리게 확대한 배경 + 중앙에 원본
-                video_filter = (
-                    "split[a][b];"
-                    "[a]scale=1080:1920,boxblur=20:20[bg];"
-                    "[b]scale=1080:-1[fg];"
-                    "[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1"
-                )
-            else:  # 'fit' (default)
-                # Fit: 전체 영상이 보이도록 축소, 위아래 검은 여백
-                video_filter = "scale=1080:-1,pad=1080:1920:0:(1920-ih)/2:black"
-        else:
-            video_filter = f"scale={settings['width']}:{settings['height']}"
+            # Add progress bar at top if available
+            if hasattr(self, '_current_clip_index') and hasattr(self, '_total_clips'):
+                # Progress bar dimensions
+                bar_width = 300
+                bar_height = 6
+                bar_x = "w-380"  # 80px from right edge
+                bar_y = 80
+                
+                # Calculate progress
+                progress = self._current_clip_index / self._total_clips
+                filled_width = int(bar_width * progress)
+                
+                # Draw background bar (gray)
+                video_filter += f",drawbox=x={bar_x}:y={bar_y}:w={bar_width}:h={bar_height}:color=gray@0.5:t=fill"
+                
+                # Draw progress bar (white)
+                if filled_width > 0:
+                    video_filter += f",drawbox=x={bar_x}:y={bar_y}:w={filled_width}:h={bar_height}:color=white@0.8:t=fill"
+                
+                # Add text below bar
+                progress_text = f"{self._current_clip_index}/{self._total_clips}"
+                video_filter += f",drawtext=text='{progress_text}':fontfile=/home/kang/.fonts/TmonMonsori.ttf:fontsize=40:fontcolor=white@0.7:borderw=2:bordercolor=black:x=w-380+({bar_width}-tw)/2:y={bar_y+15}"
         
         if subtitle_file:
             # Use absolute path and escape special characters for FFmpeg filter
@@ -441,11 +390,7 @@ class VideoEncoder:
             escaped_path = abs_path.replace('\\', '/').replace(':', '\\:')
             escaped_path = escaped_path.replace('[', '\\[').replace(']', '\\]')
             escaped_path = escaped_path.replace(',', '\\,').replace("'", "\\'")
-            # Append ass filter to existing video_filter instead of replacing it
-            # Add fontsdir for custom fonts
-            font_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'font'))
-            escaped_font_dir = font_dir.replace('\\', '/').replace(':', '\\:')
-            video_filter = f"{video_filter},ass={escaped_path}:fontsdir={escaped_font_dir}"
+            video_filter = f"scale={settings['width']}:{settings['height']}:force_original_aspect_ratio=decrease,pad={settings['width']}:{settings['height']}:(ow-iw)/2:(oh-ih)/2:black,ass={escaped_path}"
         
         cmd.extend(['-vf', video_filter])
         
@@ -468,7 +413,9 @@ class VideoEncoder:
         # Audio encoding settings
         cmd.extend([
             '-c:a', settings['audio_codec'],
-            '-b:a', settings['audio_bitrate']
+            '-b:a', settings['audio_bitrate'],
+            '-ar', str(TemplateStandards.OUTPUT_SAMPLE_RATE),  # 48kHz
+            '-ac', str(TemplateStandards.OUTPUT_CHANNELS)  # stereo
         ])
         
         # Output settings
@@ -488,6 +435,8 @@ class VideoEncoder:
     
     def _concatenate_clips(self, clip_paths: List[str], output_path: str, gap_duration: float = 0.5) -> bool:
         """Concatenate multiple video clips with gaps between them"""
+        
+        print(f"[DEBUG] _concatenate_clips called with {len(clip_paths)} clips, gap_duration={gap_duration}")
         
         if not clip_paths:
             return False
@@ -599,11 +548,11 @@ class VideoEncoder:
                         silence_cmd = [
                             'ffmpeg', '-y',
                             '-f', 'lavfi',
-                            '-i', f'anullsrc=channel_layout=stereo:sample_rate=44100',
+                            '-i', f'anullsrc=channel_layout={TemplateStandards.SILENCE_CHANNEL_LAYOUT}:sample_rate={TemplateStandards.SILENCE_SAMPLE_RATE}',
                             '-t', str(gap_duration),
                             '-acodec', 'pcm_s16le',
-                            '-ar', '44100',
-                            '-ac', '2',
+                            '-ar', str(TemplateStandards.SILENCE_SAMPLE_RATE),
+                            '-ac', str(TemplateStandards.SILENCE_CHANNELS),
                             silence_wav.name
                         ]
                         
@@ -617,14 +566,14 @@ class VideoEncoder:
                             '-i', silence_wav.name,
                             '-t', str(gap_duration),
                             '-vf', f'scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2',
-                            '-c:v', 'libx264',
-                            '-preset', 'veryfast',
-                            '-crf', '18',
-                            '-pix_fmt', 'yuv420p',
-                            '-c:a', 'aac',
-                            '-b:a', '128k',
-                            '-ar', '44100',
-                            '-ac', '2',
+                            '-c:v', TemplateStandards.STANDARD_VIDEO_CODEC,
+                            '-preset', TemplateStandards.STANDARD_VIDEO_PRESET,
+                            '-crf', str(TemplateStandards.STANDARD_VIDEO_CRF),
+                            '-pix_fmt', TemplateStandards.STANDARD_PIX_FMT,
+                            '-c:a', TemplateStandards.OUTPUT_AUDIO_CODEC,
+                            '-b:a', TemplateStandards.OUTPUT_AUDIO_BITRATE,
+                            '-ar', str(TemplateStandards.OUTPUT_SAMPLE_RATE),
+                            '-ac', str(TemplateStandards.OUTPUT_CHANNELS),
                             '-shortest',
                             freeze_file.name
                         ]
@@ -636,15 +585,15 @@ class VideoEncoder:
                             '-i', clip_path,
                             '-t', str(gap_duration),
                             '-vf', f'select=\'eq(n\\,0)\',scale={width}:{height},setpts=N/TB',
-                            '-af', f'anullsrc=channel_layout=stereo:sample_rate=44100',
-                            '-c:v', 'libx264',
-                            '-preset', 'veryfast',
-                            '-crf', '18',
-                            '-pix_fmt', 'yuv420p',
-                            '-c:a', 'aac',
-                            '-b:a', '128k',
-                            '-ar', '44100',
-                            '-ac', '2',
+                            '-af', f'anullsrc=channel_layout={TemplateStandards.SILENCE_CHANNEL_LAYOUT}:sample_rate={TemplateStandards.SILENCE_SAMPLE_RATE}',
+                            '-c:v', TemplateStandards.STANDARD_VIDEO_CODEC,
+                            '-preset', TemplateStandards.STANDARD_VIDEO_PRESET,
+                            '-crf', str(TemplateStandards.STANDARD_VIDEO_CRF),
+                            '-pix_fmt', TemplateStandards.STANDARD_PIX_FMT,
+                            '-c:a', TemplateStandards.OUTPUT_AUDIO_CODEC,
+                            '-b:a', TemplateStandards.OUTPUT_AUDIO_BITRATE,
+                            '-ar', str(TemplateStandards.OUTPUT_SAMPLE_RATE),
+                            '-ac', str(TemplateStandards.OUTPUT_CHANNELS),
                             freeze_file.name
                         ]
                     
@@ -668,11 +617,11 @@ class VideoEncoder:
                         simple_silence_cmd = [
                             'ffmpeg', '-y',
                             '-f', 'lavfi',
-                            '-i', f'anullsrc=channel_layout=stereo:sample_rate=44100',
+                            '-i', f'anullsrc=channel_layout={TemplateStandards.SILENCE_CHANNEL_LAYOUT}:sample_rate={TemplateStandards.SILENCE_SAMPLE_RATE}',
                             '-t', str(gap_duration),
                             '-acodec', 'pcm_s16le',
-                            '-ar', '44100',
-                            '-ac', '2',
+                            '-ar', str(TemplateStandards.SILENCE_SAMPLE_RATE),
+                            '-ac', str(TemplateStandards.SILENCE_CHANNELS),
                             simple_silence_wav.name
                         ]
                         subprocess.run(simple_silence_cmd, capture_output=True, text=True)
@@ -686,12 +635,14 @@ class VideoEncoder:
                             '-vf', f'select=\'eq(n\\,0)\',scale={width}:{height}',
                             '-map', '0:v',
                             '-map', '1:a',
-                            '-c:v', 'libx264',
-                            '-preset', 'veryfast',
-                            '-crf', '18',
-                            '-pix_fmt', 'yuv420p',
-                            '-c:a', 'aac',
-                            '-b:a', '128k',
+                            '-c:v', TemplateStandards.STANDARD_VIDEO_CODEC,
+                            '-preset', TemplateStandards.STANDARD_VIDEO_PRESET,
+                            '-crf', str(TemplateStandards.STANDARD_VIDEO_CRF),
+                            '-pix_fmt', TemplateStandards.STANDARD_PIX_FMT,
+                            '-c:a', TemplateStandards.OUTPUT_AUDIO_CODEC,
+                            '-b:a', TemplateStandards.OUTPUT_AUDIO_BITRATE,
+                            '-ar', str(TemplateStandards.OUTPUT_SAMPLE_RATE),
+                            '-ac', str(TemplateStandards.OUTPUT_CHANNELS),
                             freeze_file.name
                         ]
                         
@@ -712,10 +663,10 @@ class VideoEncoder:
                 '-safe', '0',
                 '-i', concat_file.name,
                 '-c:v', 'copy',
-                '-c:a', 'aac',
-                '-b:a', '192k',
-                '-ar', '44100',
-                '-ac', '2',
+                '-c:a', TemplateStandards.OUTPUT_AUDIO_CODEC,
+                '-b:a', TemplateStandards.OUTPUT_AUDIO_BITRATE,
+                '-ar', str(TemplateStandards.OUTPUT_SAMPLE_RATE),
+                '-ac', str(TemplateStandards.OUTPUT_CHANNELS),
                 '-af', 'aresample=async=1:min_hard_comp=0.100000:first_pts=0',
                 output_path
             ]
@@ -737,8 +688,132 @@ class VideoEncoder:
             if 'concat_file' in locals() and os.path.exists(concat_file.name):
                 os.unlink(concat_file.name)
     
-    # DEPRECATED: create_shadowing_video_efficient method removed
-    # Use create_shadowing_video instead
+    def create_shadowing_video_efficient(self, media_path: str, ass_path: str, output_path: str, 
+                                        start_time: float = None, end_time: float = None,
+                                        padding_before: float = 0.5, padding_after: float = 0.5) -> bool:
+        """Create shadowing video efficiently using FFmpeg concat filter"""
+        
+        # Validate input files
+        if not os.path.exists(media_path):
+            raise FileNotFoundError(f"Media file not found: {media_path}")
+        if not os.path.exists(ass_path):
+            raise FileNotFoundError(f"ASS file not found: {ass_path}")
+        
+        # Calculate padded times if specified
+        if start_time is not None and end_time is not None:
+            padded_start = max(0, start_time - padding_before)
+            padded_end = end_time + padding_after
+            duration = padded_end - padded_start
+            
+            # Create time-adjusted ASS file for this clip
+            temp_ass_file = tempfile.NamedTemporaryFile(suffix='.ass', delete=False)
+            temp_ass_file.close()
+            
+            try:
+                # Load original translated subtitles to find matching subtitle
+                translated_json = ass_path.replace('.ass', '_translated.json')
+                if os.path.exists(translated_json):
+                    with open(translated_json, 'r', encoding='utf-8') as f:
+                        subtitles_data = json.load(f)
+                    
+                    # Find the subtitle that matches this time range
+                    matching_subtitle = None
+                    for sub in subtitles_data:
+                        if (sub['start_time'] <= padded_end and sub['end_time'] >= padded_start):
+                            matching_subtitle = sub
+                            break
+                    
+                    if matching_subtitle:
+                        # Generate ASS file with only this subtitle
+                        from ass_generator import ASSGenerator
+                        ass_generator = ASSGenerator()
+                        clip_subtitle = matching_subtitle.copy()
+                        clip_subtitle['start_time'] = 0.0
+                        clip_subtitle['end_time'] = duration
+                        
+                        ass_generator.generate_ass([clip_subtitle], temp_ass_file.name)
+                        ass_path = temp_ass_file.name
+                    else:
+                        # Create empty ASS file
+                        from ass_generator import ASSGenerator
+                        ass_generator = ASSGenerator()
+                        ass_generator.generate_ass([], temp_ass_file.name)
+                        ass_path = temp_ass_file.name
+                        
+            except Exception as e:
+                print(f"Warning: Could not create time-adjusted ASS file: {e}")
+                pass
+        else:
+            padded_start = None
+            duration = None
+        
+        try:
+            # Build FFmpeg command with concat filter
+            cmd = ['ffmpeg', '-y']
+            
+            # Input file with seeking if specified
+            if padded_start is not None:
+                cmd.extend(['-ss', str(padded_start)])
+            
+            cmd.extend(['-i', media_path])
+            
+            # Duration if specified
+            if duration is not None:
+                cmd.extend(['-t', str(duration)])
+            
+            # Settings
+            settings = self.encoding_settings["with_subtitle"]
+            
+            # Create complex filter for shadowing pattern
+            # 1x no subtitle + 3x with subtitle + gaps
+            # Escape ASS path for filter_complex
+            ass_escaped = os.path.abspath(ass_path).replace(':', '\\:').replace('[', '\\[').replace(']', '\\]').replace('(', '\\(').replace(')', '\\)')
+            
+            filter_complex = f"""
+            [0:v]scale={settings['width']}:{settings['height']}:force_original_aspect_ratio=decrease,pad={settings['width']}:{settings['height']}:(ow-iw)/2:(oh-ih)/2:black[v_scaled];
+            [v_scaled]ass={ass_escaped}[v_sub];
+            [v_scaled][v_sub][v_sub][v_sub]concat=n=4:v=1:a=0[v_out];
+            [0:a][0:a][0:a][0:a]concat=n=4:v=0:a=1[a_out];
+            color=black:size={settings['width']}x{settings['height']}:duration=0.5[gap];
+            [v_out][gap][gap][gap]concat=n=4:v=1:a=0[v_final];
+            [a_out]apad=pad_dur=1.5[a_final]
+            """
+            
+            cmd.extend(['-filter_complex', filter_complex.strip()])
+            cmd.extend(['-map', '[v_final]', '-map', '[a_final]'])
+            
+            # Encoding settings
+            cmd.extend([
+                '-c:v', settings['video_codec'],
+                '-preset', settings['preset'],
+                '-crf', settings['crf'],
+                '-profile:v', settings['profile'],
+                '-level', settings['level'],
+                '-pix_fmt', settings['pix_fmt'],
+                '-c:a', settings['audio_codec'],
+                '-b:a', settings['audio_bitrate'],
+                '-movflags', '+faststart',
+                output_path
+            ])
+            
+            # Execute command
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                print(f"FFmpeg error: {result.stderr}")
+                return False
+            
+            print(f"Successfully created shadowing video: {output_path}")
+            return True
+            
+        except Exception as e:
+            print(f"Error creating shadowing video: {str(e)}")
+            return False
+            
+        finally:
+            # Clean up temporary ASS file if created
+            if 'temp_ass_file' in locals() and os.path.exists(temp_ass_file.name):
+                os.unlink(temp_ass_file.name)
 
     def process_full_video(self, media_path: str, subtitles: List[Dict], 
                           ass_path: str, output_dir: str, 

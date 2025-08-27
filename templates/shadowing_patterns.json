@@ -1,5 +1,36 @@
 {
   "patterns": {
+    "template_original": {
+      "name": "Original Style",
+      "description": "원본 구간 추출 - 학습 가공 없이 자막만 스타일 적용",
+      "clips": [
+        {
+          "subtitle_mode": "both_subtitle",
+          "folder_name": "original",
+          "count": 1,
+          "subtitle_type": "full"
+        }
+      ],
+      "gap_duration": 0
+    },
+    "template_original_shorts": {
+      "name": "Original Style (Shorts)",
+      "description": "쇼츠용 원본 구간 추출 - 정사각형 크롭 및 세로 비율",
+      "clips": [
+        {
+          "subtitle_mode": "both_subtitle",
+          "folder_name": "original_shorts",
+          "count": 1,
+          "subtitle_type": "full"
+        }
+      ],
+      "gap_duration": 0,
+      "video_settings": {
+        "width": 1080,
+        "height": 1920,
+        "aspect_ratio": "9:16"
+      }
+    },
     "template_1": {
       "name": "Progressive Learning",
       "description": "무자막 1회, 블랭크 1회, 블랭크+한글 1회, 영한자막 1회, 무자막 1회",
@@ -35,7 +66,7 @@
           "subtitle_type": null
         }
       ],
-      "gap_duration": 1.5
+      "gap_duration": 0.5
     },
     "template_2": {
       "name": "Keyword Focus",
@@ -60,7 +91,7 @@
           "subtitle_type": "full"
         }
       ],
-      "gap_duration": 1.5
+      "gap_duration": 0.5
     },
     "template_3": {
       "name": "Progressive Learning",
@@ -85,13 +116,11 @@
           "subtitle_type": "full"
         }
       ],
-      "gap_duration": 2.0
+      "gap_duration": 0.5
     },
-    "shorts_template_crop": {
-      "name": "YouTube Shorts (크롭)",
-      "description": "쇼츠용 - 중앙 크롭 버전",
-      "title": "📺 스크린\\N잉글리쉬",
-      "video_mode": "center_crop",
+    "template_1_shorts": {
+      "name": "Progressive Learning (Shorts)",
+      "description": "무자막 1회, 블랭크+한글 1회, 영한자막 1회 (쇼츠용)",
       "clips": [
         {
           "subtitle_mode": "no_subtitle",
@@ -100,10 +129,10 @@
           "subtitle_type": null
         },
         {
-          "subtitle_mode": "korean_only",
-          "folder_name": "2_korean",
+          "subtitle_mode": "blank_with_korean",
+          "folder_name": "2_blank_kor",
           "count": 1,
-          "subtitle_type": "korean"
+          "subtitle_type": "blank_korean"
         },
         {
           "subtitle_mode": "both_subtitle",
@@ -112,13 +141,16 @@
           "subtitle_type": "full"
         }
       ],
-      "gap_duration": 0.8
+      "gap_duration": 0.3,
+      "video_settings": {
+        "width": 1080,
+        "height": 1920,
+        "aspect_ratio": "9:16"
+      }
     },
-    "shorts_template_fit": {
-      "name": "YouTube Shorts (전체)",
-      "description": "쇼츠용 - 16:9 전체 화면 축소 버전",
-      "title": "📺 스크린\\N잉글리쉬",
-      "video_mode": "fit",
+    "template_2_shorts": {
+      "name": "Keyword Focus (Shorts)",
+      "description": "무자막 1회, 영한자막 2회 (쇼츠용)",
       "clips": [
         {
           "subtitle_mode": "no_subtitle",
@@ -127,25 +159,22 @@
           "subtitle_type": null
         },
         {
-          "subtitle_mode": "korean_only",
-          "folder_name": "2_korean",
-          "count": 1,
-          "subtitle_type": "korean"
-        },
-        {
-          "subtitle_mode": "both_subtitle",
-          "folder_name": "3_both",
-          "count": 1,
+          "subtitle_mode": "full_subtitle",
+          "folder_name": "2_full",
+          "count": 2,
           "subtitle_type": "full"
         }
       ],
-      "gap_duration": 0.8
+      "gap_duration": 0.3,
+      "video_settings": {
+        "width": 1080,
+        "height": 1920,
+        "aspect_ratio": "9:16"
+      }
     },
-    "shorts_template_blur": {
-      "name": "YouTube Shorts (블러)",
-      "description": "쇼츠용 - 블러 배경 버전",
-      "title": "📺 스크린\\N잉글리쉬",
-      "video_mode": "blur_background",
+    "template_3_shorts": {
+      "name": "Progressive Learning (Shorts)",
+      "description": "무자막 1회, 블랭크+한글 1회, 영한자막 1회 (쇼츠용)",
       "clips": [
         {
           "subtitle_mode": "no_subtitle",
@@ -154,10 +183,10 @@
           "subtitle_type": null
         },
         {
-          "subtitle_mode": "korean_only",
-          "folder_name": "2_korean",
+          "subtitle_mode": "blank_with_korean",
+          "folder_name": "2_blank_kor",
           "count": 1,
-          "subtitle_type": "korean"
+          "subtitle_type": "blank_korean"
         },
         {
           "subtitle_mode": "both_subtitle",
@@ -166,7 +195,119 @@
           "subtitle_type": "full"
         }
       ],
-      "gap_duration": 0.8
+      "gap_duration": 0.3,
+      "video_settings": {
+        "width": 1080,
+        "height": 1920,
+        "aspect_ratio": "9:16"
+      }
+    },
+    "template_study_preview": {
+      "name": "Study Clip - Preview",
+      "description": "스터디 미리보기 클립 (정지화면 + TTS)",
+      "clips": [
+        {
+          "subtitle_mode": "study_preview",
+          "folder_name": "study_preview",
+          "count": 1,
+          "subtitle_type": null,
+          "video_mode": "still_frame_tts",
+          "use_img_tts_generator": true
+        }
+      ],
+      "gap_duration": 0
+    },
+    "template_study_review": {
+      "name": "Study Clip - Review",
+      "description": "스터디 복습 클립 (정지화면 + TTS)",
+      "clips": [
+        {
+          "subtitle_mode": "study_review",
+          "folder_name": "study_review",
+          "count": 1,
+          "subtitle_type": null,
+          "video_mode": "still_frame_tts",
+          "use_img_tts_generator": true
+        }
+      ],
+      "gap_duration": 0
+    },
+    "template_study_shorts_preview": {
+      "name": "Study Clip - Shorts Preview",
+      "description": "쇼츠 스터디 미리보기 클립 (정지화면 + TTS)",
+      "clips": [
+        {
+          "subtitle_mode": "study_shorts_preview",
+          "folder_name": "study_shorts_preview",
+          "count": 1,
+          "subtitle_type": null,
+          "video_mode": "still_frame_tts",
+          "use_img_tts_generator": true
+        }
+      ],
+      "gap_duration": 0,
+      "video_settings": {
+        "width": 1080,
+        "height": 1920,
+        "aspect_ratio": "9:16"
+      }
+    },
+    "template_study_shorts_review": {
+      "name": "Study Clip - Shorts Review",
+      "description": "쇼츠 스터디 복습 클립 (정지화면 + TTS)",
+      "clips": [
+        {
+          "subtitle_mode": "study_shorts_review",
+          "folder_name": "study_shorts_review",
+          "count": 1,
+          "subtitle_type": null,
+          "video_mode": "still_frame_tts",
+          "use_img_tts_generator": true
+        }
+      ],
+      "gap_duration": 0,
+      "video_settings": {
+        "width": 1080,
+        "height": 1920,
+        "aspect_ratio": "9:16"
+      }
+    },
+    "template_study_original": {
+      "name": "Study Clip - Original Audio",
+      "description": "스터디 클립 원본 오디오 (정지화면 + 원본음성)",
+      "clips": [
+        {
+          "subtitle_mode": "study_original",
+          "folder_name": "study_original",
+          "count": 1,
+          "subtitle_type": null,
+          "video_mode": "still_frame_original",
+          "use_img_tts_generator": true,
+          "use_original_audio": true
+        }
+      ],
+      "gap_duration": 0
+    },
+    "template_study_shorts_original": {
+      "name": "Study Clip - Shorts Original Audio",
+      "description": "쇼츠 스터디 클립 원본 오디오 (정지화면 + 원본음성)",
+      "clips": [
+        {
+          "subtitle_mode": "study_shorts_original",
+          "folder_name": "study_shorts_original",
+          "count": 1,
+          "subtitle_type": null,
+          "video_mode": "still_frame_original",
+          "use_img_tts_generator": true,
+          "use_original_audio": true
+        }
+      ],
+      "gap_duration": 0,
+      "video_settings": {
+        "width": 1080,
+        "height": 1920,
+        "aspect_ratio": "9:16"
+      }
     }
   }
 }
