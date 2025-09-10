@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.templating import Jinja2Templates
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -39,7 +40,8 @@ from api.routes import (
     extract_router,
     status_router,
     download_router,
-    admin_router
+    admin_router,
+    youtube_viewer_router
 )
 
 # Rate limiter initialization
@@ -91,9 +93,11 @@ app.add_middleware(
 # Serve frontend files
 app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
 app.mount("/admin", StaticFiles(directory=".", html=True), name="admin")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Serve output files
 app.mount("/output", StaticFiles(directory=str(OUTPUT_DIR)), name="output")
+app.mount("/videos", StaticFiles(directory="shorts_output"), name="videos")
 
 # Include all routers
 app.include_router(health_router)
@@ -104,6 +108,7 @@ app.include_router(extract_router)
 app.include_router(status_router)
 app.include_router(download_router)
 app.include_router(admin_router)
+app.include_router(youtube_viewer_router)
 
 # Startup event
 @app.on_event("startup")

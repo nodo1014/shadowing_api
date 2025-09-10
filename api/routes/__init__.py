@@ -9,6 +9,7 @@ from .extract import router as extract_router
 from .status import router as status_router
 from .download import router as download_router
 from .admin import router as admin_router
+from .youtube_viewer import router as youtube_viewer_router
 
 __all__ = [
     'health_router',
@@ -18,5 +19,6 @@ __all__ = [
     'extract_router',
     'status_router',
     'download_router',
-    'admin_router'
+    'admin_router',
+    'youtube_viewer_router'
 ]

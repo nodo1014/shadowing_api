@@ -13,7 +13,7 @@ class ASSGenerator:
         self.width = 0
         self.height = 0
         
-    def generate_ass(self, subtitles: List[Dict], output_path: str, video_width: int = None, video_height: int = None, time_offset: float = 0.0, clip_duration: float = None, is_shorts: bool = False):
+    def generate_ass(self, subtitles: List[Dict], output_path: str, video_width: int = None, video_height: int = None, time_offset: float = 0.0, clip_duration: float = None, is_shorts: bool = False, template_name: str = None):
         """Generate ASS subtitle file from subtitle data"""
         # Keep resolution at 0 for better scaling regardless of video dimensions
         # This allows the subtitle renderer to scale fonts appropriately
@@ -50,7 +50,7 @@ class ASSGenerator:
             f.write(self._generate_header())
             
             # Write styles
-            f.write(self._generate_styles(is_shorts))
+            f.write(self._generate_styles(is_shorts, template_name))
             
             # Write events
             f.write(self._generate_events(adjusted_subtitles))
@@ -74,10 +74,10 @@ ScaledBorderAndShadow: yes
 """
         return header
     
-    def _generate_styles(self, is_shorts: bool = False) -> str:
+    def _generate_styles(self, is_shorts: bool = False, template_name: str = None) -> str:
         """Generate styles section using centralized styles.py"""
         # Note 스타일은 get_ass_styles_section에서 처리되지 않으므로 수동 추가
-        return get_ass_styles_section(is_shorts)
+        return get_ass_styles_section(is_shorts, template_name)
     
     def _generate_events(self, subtitles: List[Dict]) -> str:
         """Generate events section"""

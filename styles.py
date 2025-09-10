@@ -74,21 +74,41 @@ SUBTITLE_STYLES = {
 #   - 상단: 팔로우 버튼, 설명 텍스트 (약 100px)
 #   - 중앙 1080x1080 정사각형 영역이 주요 콘텐츠 영역
 SHORTS_ADJUSTMENTS = {
-    "english": {
-        "font_size": 60,  # 모바일 가독성을 위한 크기 (기존 100에서 축소)
-        "margin_v": 450  # 영어가 위 (하단에서 450px 위)
+    "default": {
+        "english": {
+            "font_size": 60,  # 모바일 가독성을 위한 크기 (기존 100에서 축소)
+            "margin_v": 450  # 영어가 위 (하단에서 450px 위)
+        },
+        "korean": {
+            "font_size": 50,  # 영어보다 약간 작게 (기존 90에서 축소)
+            "margin_v": 300  # 한글이 아래 (하단에서 350px 위)
+        },
+        "note": {
+            "font_size": 40,  # 모바일용 축소 (기존 70에서)
+            "margin_v": 120  # 상단 여백 증가 (상단 UI 피하기)
+        },
+        "label": {
+            "font_size": 50,  # 모바일용 축소
+            "margin_v": 120  # 상단 여백 증가
+        }
     },
-    "korean": {
-        "font_size": 50,  # 영어보다 약간 작게 (기존 90에서 축소)
-        "margin_v": 300  # 한글이 아래 (하단에서 350px 위)
-    },
-    "note": {
-        "font_size": 40,  # 모바일용 축소 (기존 70에서)
-        "margin_v": 120  # 상단 여백 증가 (상단 UI 피하기)
-    },
-    "label": {
-        "font_size": 50,  # 모바일용 축소
-        "margin_v": 120  # 상단 여백 증가
+    "template_3_shorts": {
+        "english": {
+            "font_size": 45,  # 더 작은 폰트 크기
+            "margin_v": 310  # 한글 위 (하단에서 310px 위)
+        },
+        "korean": {
+            "font_size": 40,  # 더 작은 폰트 크기
+            "margin_v": 250  # YouTube UI 피해서 (하단에서 250px 위)
+        },
+        "note": {
+            "font_size": 35,
+            "margin_v": 120
+        },
+        "label": {
+            "font_size": 40,
+            "margin_v": 120
+        }
     }
 }
 
@@ -120,7 +140,7 @@ def format_ass_style(name: str, style: dict) -> str:
         style["margin_v"]
     )
 
-def get_ass_styles_section(is_shorts: bool = False) -> str:
+def get_ass_styles_section(is_shorts: bool = False, template_name: str = None) -> str:
     """완전한 ASS Styles 섹션 반환"""
     styles = ["[V4+ Styles]", get_ass_style_format()]
     
@@ -131,9 +151,14 @@ def get_ass_styles_section(is_shorts: bool = False) -> str:
             styles.append(format_ass_style("Label", style_data))
         else:
             # Shorts 조정 적용
-            if is_shorts and style_name in SHORTS_ADJUSTMENTS:
+            if is_shorts:
                 adjusted_style = style_data.copy()
-                adjusted_style.update(SHORTS_ADJUSTMENTS[style_name])
+                # 템플릿별 설정이 있으면 우선 적용, 없으면 default 사용
+                if template_name and template_name in SHORTS_ADJUSTMENTS:
+                    if style_name in SHORTS_ADJUSTMENTS[template_name]:
+                        adjusted_style.update(SHORTS_ADJUSTMENTS[template_name][style_name])
+                elif style_name in SHORTS_ADJUSTMENTS.get("default", {}):
+                    adjusted_style.update(SHORTS_ADJUSTMENTS["default"][style_name])
                 styles.append(format_ass_style(style_name, adjusted_style))
             else:
                 styles.append(format_ass_style(style_name, style_data))
