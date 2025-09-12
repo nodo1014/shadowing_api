@@ -45,7 +45,8 @@ from api.routes import (
     download_router,
     admin_router,
     youtube_viewer_router,
-    file_management_router
+    file_management_router,
+    intro_router
 )
 
 # Rate limiter initialization
@@ -121,6 +122,7 @@ app.include_router(download_router)
 app.include_router(admin_router)
 app.include_router(youtube_viewer_router)
 app.include_router(file_management_router)
+app.include_router(intro_router)
 
 # Startup event
 @app.on_event("startup")

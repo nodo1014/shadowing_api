@@ -45,7 +45,7 @@ SUBTITLE_STYLES = {
         "back_color": "&H00000000",
         "outline": 3,  # 두꺼운 테두리
         "shadow": 0,  # No shadow for clean look
-        "alignment": 2,  # Bottom center (2 = bottom center)
+        "alignment": 5,  # Center (5 = center)
         "margin_l": 80,  # FHD 기준 좌측 여백
         "margin_r": 80,
         "margin_v": 50  # FHD 기준 하단 여백
