@@ -444,39 +444,147 @@ class EnhancedBatchRenderer:
                 logger.error("No video files provided for batch")
                 return False
             
-            # concat 파일 생성
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
-                for video_file in video_files:
-                    # FFmpeg concat demuxer 형식
-                    f.write(f"file '{os.path.abspath(video_file)}'\n")
-                concat_file = f.name
-            
-            # FFmpeg 명령 구성
-            cmd = [
-                'ffmpeg', '-y',
-                '-f', 'concat',
-                '-safe', '0',
-                '-i', concat_file,
-                '-c', 'copy',  # 재인코딩 없이 복사
-                output_path
-            ]
-            
             logger.info(f"Creating batch video with {len(video_files)} clips")
-            result = subprocess.run(cmd, capture_output=True, text=True)
             
-            # 임시 파일 삭제
-            os.unlink(concat_file)
-            
-            if result.returncode != 0:
-                logger.error(f"FFmpeg error: {result.stderr}")
+            # 먼저 비디오 파일들의 코덱 정보를 확인
+            first_video_info = self._get_video_info(video_files[0])
+            if not first_video_info:
+                logger.error("Failed to get video info for first clip")
                 return False
             
-            logger.info(f"Batch video created successfully: {output_path}")
-            return True
+            # concat 파일 생성 - 정확한 duration 포함
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+                for i, video_file in enumerate(video_files):
+                    if not os.path.exists(video_file):
+                        logger.error(f"Video file not found: {video_file}")
+                        return False
+                    # FFmpeg concat demuxer 형식
+                    f.write(f"file '{os.path.abspath(video_file)}'\n")
+                    
+                    # 각 클립의 duration 확인 (디버깅용)
+                    video_info = self._get_video_info(video_file)
+                    if video_info and 'format' in video_info:
+                        duration = video_info['format'].get('duration', 'unknown')
+                        logger.info(f"Clip {i+1}: {os.path.basename(video_file)} - duration: {duration}s")
+                concat_file = f.name
+            
+            try:
+                # 모든 비디오를 동일한 형식으로 재인코딩하여 concat
+                # 이렇게 하면 코덱, 프레임레이트, 해상도 등이 통일되어 싱크 문제 해결
+                cmd = [
+                    'ffmpeg', '-y',
+                    '-f', 'concat',
+                    '-safe', '0',
+                    '-i', concat_file,
+                    # 비디오 설정
+                    '-c:v', 'libx264',
+                    '-preset', 'medium',
+                    '-crf', '16',  # 높은 품질
+                    '-profile:v', 'high',
+                    '-level', '4.1',
+                    '-pix_fmt', 'yuv420p',
+                    '-s', '1920x1080',  # 출력 해상도 고정
+                    '-r', '30',  # 프레임레이트 고정
+                    '-g', '60',  # 키프레임 간격
+                    '-bf', '2',  # B-프레임
+                    # 오디오 설정
+                    '-c:a', 'aac',
+                    '-b:a', '192k',
+                    '-ar', '48000',
+                    '-ac', '2',  # 스테레오
+                    '-af', 'aresample=async=1:min_hard_comp=0.100000:first_pts=0',  # 오디오 싱크 보정
+                    # 추가 설정
+                    '-movflags', '+faststart',
+                    '-max_muxing_queue_size', '1024',
+                    '-avoid_negative_ts', 'make_zero',  # 타임스탬프 문제 해결
+                    '-fflags', '+genpts',  # PTS 생성
+                    '-threads', '0',  # 자동 스레드
+                    output_path
+                ]
+                
+                logger.info(f"Running FFmpeg concat with re-encoding for {len(video_files)} files")
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                
+                if result.returncode != 0:
+                    logger.error(f"FFmpeg concat error: {result.stderr}")
+                    
+                    # 대체 방법: filter_complex 사용
+                    logger.info("Trying alternative method with filter_complex")
+                    
+                    # 각 입력 파일에 대한 -i 옵션 생성
+                    input_args = []
+                    filter_parts = []
+                    for i, video_file in enumerate(video_files):
+                        input_args.extend(['-i', video_file])
+                        filter_parts.append(f'[{i}:v] [{i}:a] ')
+                    
+                    # filter_complex 구성
+                    filter_complex = ''.join(filter_parts) + f'concat=n={len(video_files)}:v=1:a=1 [v] [a]'
+                    
+                    cmd = ['ffmpeg', '-y']
+                    cmd.extend(input_args)
+                    cmd.extend([
+                        '-filter_complex', filter_complex,
+                        '-map', '[v]',
+                        '-map', '[a]',
+                        '-c:v', 'libx264',
+                        '-preset', 'medium',
+                        '-crf', '16',
+                        '-profile:v', 'high',
+                        '-level', '4.1',
+                        '-pix_fmt', 'yuv420p',
+                        '-s', '1920x1080',  # 출력 해상도 고정
+                        '-r', '30',
+                        '-c:a', 'aac',
+                        '-b:a', '192k',
+                        '-ar', '48000',
+                        '-movflags', '+faststart',
+                        output_path
+                    ])
+                    
+                    result = subprocess.run(cmd, capture_output=True, text=True)
+                    
+                    if result.returncode != 0:
+                        logger.error(f"FFmpeg filter_complex error: {result.stderr}")
+                        return False
+                
+                logger.info(f"Batch video created successfully: {output_path}")
+                return True
+                
+            finally:
+                # 임시 파일 삭제
+                if os.path.exists(concat_file):
+                    os.unlink(concat_file)
             
         except Exception as e:
             logger.error(f"Error creating batch video: {e}")
             return False
+    
+    def _get_video_info(self, video_path: str) -> dict:
+        """비디오 정보 추출"""
+        import subprocess
+        import json
+        
+        try:
+            cmd = [
+                'ffprobe',
+                '-v', 'quiet',
+                '-print_format', 'json',
+                '-show_streams',
+                '-show_format',
+                video_path
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode == 0:
+                return json.loads(result.stdout)
+            else:
+                logger.error(f"ffprobe error: {result.stderr}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error getting video info: {e}")
+            return None
 
 
 class ResourceMonitor:

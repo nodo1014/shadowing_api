@@ -1,12 +1,10 @@
 """
 Single Clip Routes
 """
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from typing import Optional
 import uuid
 import logging
-import json
-import time
 from datetime import datetime
 from pathlib import Path
 
@@ -19,7 +17,6 @@ from api.utils import (
     job_status,
     active_processes
 )
-from api.utils.id_generator import get_next_folder_id
 from api.db_utils import (
     create_job_in_db,
     create_media_source,
@@ -37,7 +34,7 @@ import sys
 sys.path.append(str(Path(__file__).parent.parent.parent))
 from template_video_encoder import TemplateVideoEncoder
 from database import save_job_to_db  # Keep for compatibility
-from database_v2.models_v2 import DatabaseManager, APIRequest
+from database.models_v2 import DatabaseManager
 
 router = APIRouter(prefix="/api", tags=["Clipping"])
 logger = logging.getLogger(__name__)
@@ -64,14 +61,11 @@ async def create_clip(
     - **template_number**: 1 (기본), 2 (키워드 블랭크), 또는 3 (점진적 학습)
     - **individual_clips**: 개별 클립 저장 여부
     """
-    # Job ID는 여전히 UUID 사용 (DB 키로 사용)
+    # Job ID 생성
     job_id = str(uuid.uuid4())
     
-    # 폴더명은 날짜별 순차 번호 사용
-    date_str = datetime.now().strftime("%Y-%m-%d")
-    folder_id = get_next_folder_id(date_str)
-    
     # 요청 시작 시간
+    import time
     request_start_time = time.time()
     
     # Debug logging
@@ -95,8 +89,7 @@ async def create_clip(
         "text_eng": request.text_eng,
         "text_kor": request.text_kor,
         "note": request.note,
-        "keywords": request.keywords,
-        "folder_id": folder_id  # 순차 폴더 ID 추가
+        "keywords": request.keywords
     }
     job_status[job_id] = job_data
     
@@ -113,8 +106,7 @@ async def create_clip(
                 job_type="single_clip",
                 api_endpoint="/api/clip",
                 request_data=request.dict(),
-                client_info=client_info,
-                extra_data={"folder_id": folder_id}
+                client_info=client_info
             )
             
             # API 요청 로깅
@@ -168,28 +160,22 @@ async def create_clip(
 async def process_clipping(job_id: str, request: ClippingRequest):
     """비디오 클리핑 처리"""
     
+    
     try:
         # 작업 시작 (메모리와 DB 동시 업데이트)
         update_job_status_both(job_id, "processing", 10, message="클리핑 준비 중...")
-        
-        # 새 DB에도 상태 업데이트
-        with DatabaseManager.get_session() as session:
-            update_job_status_db(session, job_id, "processing", 10, "클리핑 준비 중...")
-            add_processing_log(session, job_id, "info", "initialization", "클리핑 작업 시작")
         
         # 미디어 경로 검증
         media_path = MediaValidator.validate_media_path(request.media_path)
         if not media_path:
             raise ValueError(f"Invalid media path: {request.media_path}")
         
-        # 날짜별 디렉토리 구조: /output/YYYY-MM-DD/folder_id
+        # 날짜별 디렉토리 구조: /output/YYYY-MM-DD/job_id
         date_str = datetime.now().strftime("%Y-%m-%d")
         daily_dir = OUTPUT_DIR / date_str
         daily_dir.mkdir(exist_ok=True)
         
-        # job_status에서 folder_id 가져오기
-        folder_id = job_status.get(job_id, {}).get('folder_id', job_id)
-        job_dir = daily_dir / folder_id
+        job_dir = daily_dir / job_id
         job_dir.mkdir(exist_ok=True)
         
         # 텍스트 블랭크 처리 (Type 2, 3인 경우 자동 생성)
@@ -245,30 +231,6 @@ async def process_clipping(job_id: str, request: ClippingRequest):
         # 자막 파일 생성은 템플릿 인코더가 자동으로 처리
         update_job_status_both(job_id, "processing", 30, message="자막 파일 생성 중...")
         
-        # 새 DB에 미디어 소스 및 자막 정보 저장
-        with DatabaseManager.get_session() as session:
-            # 미디어 소스 저장
-            create_media_source(
-                session=session,
-                job_id=job_id,
-                file_path=str(media_path)
-            )
-            
-            # 자막 정보 저장
-            create_subtitle_record(
-                session=session,
-                job_id=job_id,
-                text_eng=request.text_eng,
-                text_kor=request.text_kor,
-                note=request.note,
-                keywords=request.keywords,
-                start_time=request.start_time,
-                end_time=request.end_time
-            )
-            
-            update_job_status_db(session, job_id, "processing", 30, "자막 파일 생성 중...")
-            add_processing_log(session, job_id, "info", "subtitle", "자막 정보 저장 완료")
-        
         # 비디오 클리핑 - 템플릿 기반 접근
         update_job_status_both(job_id, "processing", 50, message="비디오 클리핑 중...")
         
@@ -304,21 +266,7 @@ async def process_clipping(job_id: str, request: ClippingRequest):
         if success:
             update_job_status_both(job_id, "processing", 90, message="클리핑 완료, 파일 정리 중...")
             
-            # 새 DB에 출력 비디오 정보 저장
-            with DatabaseManager.get_session() as session:
-                create_output_video(
-                    session=session,
-                    job_id=job_id,
-                    video_type="main",
-                    file_path=str(output_path),
-                    subtitle_mode=_get_subtitle_mode(request.template_number),
-                    processing_time=None  # 나중에 추가 가능
-                )
-                
-                update_job_status_db(session, job_id, "processing", 90, "클리핑 완료, 파일 정리 중...")
-                add_processing_log(session, job_id, "info", "video_generation", "비디오 생성 완료")
-            
-            # 개별 클립 찾기 및 DB 저장
+            # 개별 클립 찾기
             individual_clips = None
             if request.individual_clips:
                 clips_dir = job_dir / "individual_clips"
@@ -326,26 +274,6 @@ async def process_clipping(job_id: str, request: ClippingRequest):
                     clips = list(clips_dir.glob("*.mp4"))
                     if clips:
                         individual_clips = [str(clip.relative_to(OUTPUT_DIR.parent)) for clip in clips]
-                        
-                        # 개별 클립들도 DB에 저장
-                        with DatabaseManager.get_session() as session:
-                            for idx, clip_path in enumerate(clips):
-                                # 파일명에서 효과 타입 추측
-                                effect_type = _guess_effect_type(str(clip_path))
-                                subtitle_mode = _guess_subtitle_mode(str(clip_path))
-                                
-                                create_output_video(
-                                    session=session,
-                                    job_id=job_id,
-                                    video_type="individual_clip",
-                                    file_path=str(clip_path),
-                                    effect_type=effect_type,
-                                    subtitle_mode=subtitle_mode,
-                                    clip_index=idx + 1
-                                )
-                            
-                            add_processing_log(session, job_id, "info", "individual_clips", 
-                                             f"{len(clips)}개 개별 클립 저장 완료")
             
             # 작업 완료
             update_job_status_both(
@@ -356,30 +284,10 @@ async def process_clipping(job_id: str, request: ClippingRequest):
                 output_file=str(output_path)
             )
             
-            # 새 DB에도 완료 상태 업데이트
-            with DatabaseManager.get_session() as session:
-                update_job_status_db(session, job_id, "completed", 100, "클리핑이 완료되었습니다.")
-                add_processing_log(session, job_id, "info", "completion", "작업 성공적으로 완료")
-            
             logger.info(f"[Job {job_id}] Clipping completed successfully: {output_path}")
             
         else:
             raise Exception("비디오 생성 실패")
-    
-    except Exception as e:
-        logger.error(f"[Job {job_id}] Error: {str(e)}")
-        update_job_status_both(
-            job_id,
-            "failed",
-            0,
-            message="클리핑 실패",
-            error_message=str(e)
-        )
-        
-        # 새 DB에도 실패 상태 업데이트
-        with DatabaseManager.get_session() as session:
-            update_job_status_db(session, job_id, "failed", 0, "클리핑 실패", str(e))
-            add_processing_log(session, job_id, "error", "failure", f"작업 실패: {str(e)}")
 
 
 def _get_subtitle_mode(template_number: int) -> str:
@@ -411,3 +319,15 @@ def _guess_subtitle_mode(file_path: str) -> str:
     elif 'both' in file_path:
         return 'both'
     return 'both'
+    
+    except Exception as e:
+        logger.error(f"[Job {job_id}] Error: {str(e)}")
+        update_job_status_both(
+            job_id,
+            "failed",
+            0,
+            message="클리핑 실패",
+            error_message=str(e)
+        )
+
+

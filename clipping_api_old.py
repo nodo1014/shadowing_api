@@ -202,7 +202,8 @@ def update_job_status_both(job_id: str, status: str, progress: int = None,
     update_job_status(job_id, status, progress, output_file, error_message, message)
 
 # 디렉토리 설정
-OUTPUT_DIR = Path(os.getenv('OUTPUT_DIR', '/mnt/ssd1t/output'))
+BASE_DIR = Path(__file__).parent
+OUTPUT_DIR = Path(os.getenv('OUTPUT_DIR', str(BASE_DIR / 'output')))
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 # 허용된 미디어 루트 디렉토리들 (보안)

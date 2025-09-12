@@ -53,10 +53,10 @@ try:
                 if status.get('status') == 'completed':
                     print(f"\n\n✓ Job completed!")
                     job_id = result['job_id']
-                    print(f"\nOutput directory: /mnt/ssd1t/output/2025-08-26/{job_id}/")
+                    print(f"\nOutput directory: output/2025-08-26/{job_id}/")
                     print(f"\nChecking files...")
                     import os
-                    output_dir = f"/mnt/ssd1t/output/2025-08-26/{job_id}/"
+                    output_dir = f"output/2025-08-26/{job_id}/"
                     if os.path.exists(output_dir):
                         files = os.listdir(output_dir)
                         for file in files:

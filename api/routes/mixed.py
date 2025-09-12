@@ -1,10 +1,12 @@
 """
 Mixed Template Routes - 여러 템플릿을 혼합하여 사용
 """
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 from typing import List, Optional
 import uuid
 import logging
+import json
+import time
 from datetime import datetime
 from pathlib import Path
 import tempfile
@@ -19,6 +21,18 @@ from api.utils import (
     job_status,
     cleanup_memory_jobs
 )
+from api.utils.id_generator import get_next_folder_id
+from api.db_utils import (
+    create_job_in_db,
+    create_media_source,
+    create_subtitle_record,
+    create_output_video,
+    update_job_status_db,
+    add_processing_log,
+    log_api_request,
+    get_client_info,
+    ensure_templates_populated
+)
 # Using text_processing.py's create_multi_subtitle_file which now uses ASSGenerator
 from api.utils.text_processing import create_multi_subtitle_file
 
@@ -26,6 +40,7 @@ from api.utils.text_processing import create_multi_subtitle_file
 import sys
 sys.path.append(str(Path(__file__).parent.parent.parent))
 from template_video_encoder import TemplateVideoEncoder
+from database_v2.models_v2 import DatabaseManager, APIRequest
 # No longer need get_ass_styles_section as we use extract.py's function
 
 router = APIRouter(prefix="/api", tags=["Clipping"])
@@ -37,7 +52,8 @@ logger = logging.getLogger(__name__)
              summary="혼합 템플릿 클립 생성")
 async def create_mixed_template_clips(
     request: MixedTemplateRequest,
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks,
+    req: Request
 ):
     """
     각 클립에 다른 템플릿을 적용하여 생성합니다.
@@ -49,11 +65,21 @@ async def create_mixed_template_clips(
     
     combine=True면 하나의 비디오로 결합합니다.
     """
-    # Job ID 생성
+    # Job ID는 여전히 UUID 사용 (DB 키로 사용)
     job_id = str(uuid.uuid4())
+    
+    # 폴더명은 날짜별 순차 번호 사용
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    folder_id = get_next_folder_id(date_str)
+    
+    # 요청 시작 시간
+    request_start_time = time.time()
     
     # Debug logging
     logger.info(f"[Job {job_id}] Mixed template request - Clips: {len(request.clips)}, Combine: {request.combine}")
+    
+    # 클라이언트 정보 추출
+    client_info = get_client_info(req)
     for i, clip in enumerate(request.clips):
         logger.info(f"  Clip {i+1}: Template {clip.template_number}, {clip.start_time}-{clip.end_time}s")
     
@@ -61,7 +87,7 @@ async def create_mixed_template_clips(
     cleanup_memory_jobs()
     
     # 작업 상태 초기화
-    job_status[job_id] = {
+    job_data = {
         "status": "pending",
         "progress": 0,
         "message": "혼합 템플릿 작업 대기 중...",
@@ -69,8 +95,40 @@ async def create_mixed_template_clips(
         "combined_file": None,
         "total_clips": len(request.clips),
         "completed_clips": 0,
-        "error": None
+        "error": None,
+        "media_path": request.media_path,
+        "folder_id": folder_id  # 순차 폴더 ID 추가
     }
+    job_status[job_id] = job_data
+    
+    # 새로운 DB에 저장
+    try:
+        with DatabaseManager.get_session() as session:
+            # 템플릿 확인
+            ensure_templates_populated(session)
+            
+            # Job 생성
+            job = create_job_in_db(
+                session=session,
+                job_id=job_id,
+                job_type="mixed_template",
+                api_endpoint="/api/clip/mixed",
+                request_data=request.dict(),
+                client_info=client_info,
+                extra_data={"folder_id": folder_id}
+            )
+            
+            # API 요청 로깅
+            log_api_request(
+                session=session,
+                endpoint="/api/clip/mixed",
+                method="POST",
+                client_info=client_info,
+                request_data=request.dict(),
+                job_id=job_id
+            )
+    except Exception as e:
+        logger.error(f"Failed to save job to new DB: {e}")
     
     # 백그라운드 작업 시작
     background_tasks.add_task(
@@ -79,19 +137,46 @@ async def create_mixed_template_clips(
         request
     )
     
-    return ClippingResponse(
+    # API 응답 로깅
+    response_time_ms = int((time.time() - request_start_time) * 1000)
+    response = ClippingResponse(
         job_id=job_id,
         status="accepted",
         message=f"혼합 템플릿 작업이 시작되었습니다. (총 {len(request.clips)}개)"
     )
+    
+    # API 응답 업데이트
+    try:
+        with DatabaseManager.get_session() as session:
+            api_request = session.query(APIRequest).filter_by(job_id=job_id).first()
+            if api_request:
+                api_request.response_status = 200
+                api_request.response_time_ms = response_time_ms
+                api_request.response_body = json.dumps(response.dict())
+                session.commit()
+    except Exception as e:
+        logger.error(f"Failed to update API response in DB: {e}")
+    
+    return response
 
 
 async def process_mixed_clips(job_id: str, request: MixedTemplateRequest):
     """혼합 템플릿 클립 처리"""
     try:
         # 작업 시작
-        job_status[job_id]["status"] = "processing"
-        job_status[job_id]["message"] = "혼합 템플릿 클립 준비 중..."
+        update_job_status_both(job_id, "processing", 5, message="혼합 템플릿 클립 준비 중...")
+        
+        # 새 DB에도 상태 업데이트
+        with DatabaseManager.get_session() as session:
+            update_job_status_db(session, job_id, "processing", 5, "혼합 템플릿 클립 준비 중...")
+            add_processing_log(session, job_id, "info", "initialization", "혼합 템플릿 작업 시작")
+            
+            # 미디어 소스 저장
+            create_media_source(
+                session=session,
+                job_id=job_id,
+                file_path=str(media_path)
+            )
         
         # 미디어 경로 검증
         media_path = MediaValidator.validate_media_path(request.media_path)
@@ -103,7 +188,9 @@ async def process_mixed_clips(job_id: str, request: MixedTemplateRequest):
         daily_dir = OUTPUT_DIR / date_str
         daily_dir.mkdir(exist_ok=True)
         
-        job_dir = daily_dir / job_id
+        # job_status에서 folder_id 가져오기
+        folder_id = job_status.get(job_id, {}).get('folder_id', job_id)
+        job_dir = daily_dir / folder_id
         job_dir.mkdir(exist_ok=True)
         
         output_files = []
@@ -195,6 +282,35 @@ async def process_mixed_clips(job_id: str, request: MixedTemplateRequest):
                     file_info["text_kor"] = clip_data.text_kor
                 output_files.append(file_info)
                 job_status[job_id]["completed_clips"] = clip_num
+                
+                # 새 DB에 클립 정보 저장
+                with DatabaseManager.get_session() as session:
+                    # 자막 정보 저장 (Template 0이 아닌 경우만)
+                    if clip_data.template_number != 0:
+                        create_subtitle_record(
+                            session=session,
+                            job_id=job_id,
+                            text_eng=clip_data.text_eng,
+                            text_kor=clip_data.text_kor,
+                            note=clip_data.note,
+                            keywords=clip_data.keywords,
+                            start_time=clip_data.start_time,
+                            end_time=clip_data.end_time
+                        )
+                    
+                    # 출력 비디오 정보 저장
+                    create_output_video(
+                        session=session,
+                        job_id=job_id,
+                        video_type="mixed_clip",
+                        file_path=str(output_path),
+                        subtitle_mode=_get_subtitle_mode(clip_data.template_number),
+                        clip_index=clip_num
+                    )
+                    
+                    add_processing_log(session, job_id, "info", "mixed_clip", 
+                                     f"클립 {clip_num} 생성 완료 (템플릿 {clip_data.template_number})")
+                
                 logger.info(f"[Job {job_id}] Clip {clip_num} created with template {clip_data.template_number}")
             else:
                 raise Exception(f"클립 {clip_num} 생성 실패 (템플릿 {clip_data.template_number})")
@@ -220,12 +336,29 @@ async def process_mixed_clips(job_id: str, request: MixedTemplateRequest):
                 # output 폴더 기준 상대 경로
                 rel_path = combined_path.relative_to(OUTPUT_DIR)
                 job_status[job_id]["combined_file"] = str(rel_path)
+                
+                # 새 DB에 결합된 비디오 정보 저장
+                with DatabaseManager.get_session() as session:
+                    create_output_video(
+                        session=session,
+                        job_id=job_id,
+                        video_type="mixed_combined",
+                        file_path=str(combined_path),
+                        subtitle_mode="mixed",
+                        clip_index=0
+                    )
+                    add_processing_log(session, job_id, "info", "combine", 
+                                     f"{len(output_files)}개 클립 결합 완료")
+                
                 logger.info(f"[Job {job_id}] Videos combined successfully: {combined_path}")
         
         # 작업 완료
-        job_status[job_id]["status"] = "completed"
-        job_status[job_id]["progress"] = 100
-        job_status[job_id]["message"] = f"혼합 템플릿 클립 생성 완료! (총 {len(output_files)}개)"
+        update_job_status_both(
+            job_id,
+            "completed",
+            100,
+            message=f"혼합 템플릿 클립 생성 완료! (총 {len(output_files)}개)"
+        )
         job_status[job_id]["output_files"] = output_files
         
         # Redis에 동기화
@@ -247,13 +380,40 @@ async def process_mixed_clips(job_id: str, request: MixedTemplateRequest):
         elif len(output_files) == 1:
             job_status[job_id]["output_file"] = output_files[0]["file"]
         
+        # 새 DB에도 완료 상태 업데이트
+        with DatabaseManager.get_session() as session:
+            update_job_status_db(session, job_id, "completed", 100, 
+                              f"혼합 템플릿 클립 생성 완료! (총 {len(output_files)}개)")
+            add_processing_log(session, job_id, "info", "completion", 
+                             f"작업 성공적으로 완료 - 총 {len(output_files)}개 파일 생성")
+        
         logger.info(f"[Job {job_id}] Mixed template processing completed: {len(output_files)} files")
     
     except Exception as e:
         logger.error(f"[Job {job_id}] Mixed template error: {str(e)}")
-        job_status[job_id]["status"] = "failed"
-        job_status[job_id]["error"] = str(e)
-        job_status[job_id]["message"] = "혼합 템플릿 생성 실패"
+        update_job_status_both(
+            job_id,
+            "failed",
+            0,
+            message="혼합 템플릿 생성 실패",
+            error_message=str(e)
+        )
+        
+        # 새 DB에도 실패 상태 업데이트
+        with DatabaseManager.get_session() as session:
+            update_job_status_db(session, job_id, "failed", 0, "혼합 템플릿 생성 실패", str(e))
+            add_processing_log(session, job_id, "error", "failure", f"작업 실패: {str(e)}")
+
+
+def _get_subtitle_mode(template_number: int) -> str:
+    """템플릿 번호로 자막 모드 추측"""
+    if template_number == 1:
+        return "nosub"
+    elif template_number == 2:
+        return "korean"
+    elif template_number in [3, 11, 12, 13]:
+        return "both"
+    return "both"
 
 
 async def combine_videos(video_files: List[Path], output_path: Path, transitions: bool = False) -> bool:

@@ -7,6 +7,10 @@ import logging
 from datetime import datetime
 from typing import Dict, Optional, Any
 from pathlib import Path
+import sys
+
+# Add parent directory to path for database imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +112,8 @@ def update_job_status_both(job_id: str, status: str, progress: int = None,
     if error_message is not None:
         job_data['error'] = error_message
     
+    # DB 업데이트 비활성화 - 메모리만 사용
+    
     # Redis 업데이트 (모든 worker에서 접근 가능)
     if USE_REDIS and redis_client:
         try:
@@ -150,12 +156,24 @@ def update_job_status_both(job_id: str, status: str, progress: int = None,
                     if clips:
                         job_data['individual_clips'] = clips
                         
+                        # 새 DB에도 개별 클립 정보 업데이트
+                        try:
+                            from database_v2.models_v2 import DatabaseManager, Job
+                            with DatabaseManager.get_session() as session:
+                                job = session.query(Job).filter_by(id=job_id).first()
+                                if job:
+                                    job.extra_data = job.extra_data or {}
+                                    job.extra_data['individual_clips'] = clips
+                                    session.commit()
+                        except Exception as db_err:
+                            logger.warning(f"Failed to update individual clips in DB: {db_err}")
+                        
             except Exception as e:
                 logger.warning(f"Failed to convert path: {e}")
 
 
 def get_job_status(job_id: str) -> Optional[Dict[str, Any]]:
-    """작업 상태 조회 (메모리 또는 Redis에서)"""
+    """작업 상태 조회 (메모리, Redis 또는 새 DB에서)"""
     # 먼저 메모리에서 확인
     if job_id in job_status:
         return job_status[job_id]
@@ -169,5 +187,29 @@ def get_job_status(job_id: str) -> Optional[Dict[str, Any]]:
                 return pickle.loads(data)
         except Exception as e:
             logger.warning(f"Redis read failed: {e}")
+    
+    # 새 DB에서 확인
+    try:
+        from database_v2.models_v2 import DatabaseManager, Job
+        with DatabaseManager.get_session() as session:
+            job = session.query(Job).filter_by(id=job_id).first()
+            if job:
+                # DB 데이터를 기존 형식으로 변환
+                return {
+                    'job_id': job.id,
+                    'status': job.status,
+                    'progress': job.progress,
+                    'message': job.message,
+                    'error': job.error_message,
+                    'output_file': None,  # output_videos 테이블에서 가져와야 함
+                    'created_at': job.created_at.isoformat() if job.created_at else None,
+                    'updated_at': job.updated_at.isoformat() if job.updated_at else None,
+                    'media_path': job.request_body.get('media_path') if isinstance(job.request_body, dict) else None,
+                    'template_number': job.template_id,
+                    'start_time': job.start_time,
+                    'end_time': job.end_time
+                }
+    except Exception as e:
+        logger.warning(f"DB read failed for job {job_id}: {e}")
     
     return None

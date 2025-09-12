@@ -81,7 +81,7 @@ class SubtitlePipeline:
             self.korean = base_subtitle_data.get('kor_text_l', base_subtitle_data.get('korean', ''))
         
         self.note = base_subtitle_data.get('note', '')
-        self.keywords = base_subtitle_data.get('keywords', [])
+        self.keywords = base_subtitle_data.get('keywords') or []
         self.start_time = base_subtitle_data.get('start_time', 0)
         self.end_time = base_subtitle_data.get('end_time', 0)
         self.is_shorts = is_shorts  # 쇼츠 여부 저장
@@ -152,7 +152,7 @@ class SubtitlePipeline:
     def _get_blank_text(self, text: str) -> str:
         """블랭크 텍스트 생성 (캐싱 적용)"""
         # 캐시 키 생성
-        cache_key = f"{text}:{','.join(self.keywords)}"
+        cache_key = f"{text}:{','.join(self.keywords or [])}"
         
         if cache_key in self._blank_text_cache:
             return self._blank_text_cache[cache_key]

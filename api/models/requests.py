@@ -8,6 +8,7 @@ from .validators import MediaValidator
 
 class ClipData(BaseModel):
     """개별 클립 데이터"""
+    media_path: Optional[str] = Field(None, description="개별 미디어 경로 (다중 미디어 모드에서 사용)")
     start_time: float = Field(..., ge=0, description="클립 시작 시간 (초)")
     end_time: float = Field(..., gt=0, description="클립 종료 시간 (초)")
     text_eng: str = Field(..., description="영문 자막")
@@ -39,7 +40,7 @@ class ClippingRequest(ClipData):
 
 class BatchClippingRequest(BaseModel):
     """배치 클리핑 요청 모델"""
-    media_path: str = Field(..., description="미디어 파일 경로")
+    media_path: Optional[str] = Field(None, description="미디어 파일 경로 (단일 미디어 모드)")
     clips: List[ClipData] = Field(..., description="클립 데이터 리스트")
     template_number: int = Field(1, ge=1, le=100, description="템플릿 번호 (1-3: 일반, 11-13: 쇼츠, 21-29: TTS, 31-39: 스터디클립)")
     individual_clips: bool = Field(False, description="개별 클립 저장 여부")
@@ -50,6 +51,8 @@ class BatchClippingRequest(BaseModel):
     
     @validator('media_path')
     def validate_media_path(cls, v):
+        if v is None:
+            return v
         # 미디어 경로 검증
         validated_path = MediaValidator.validate_media_path(v)
         if not validated_path:
@@ -60,6 +63,23 @@ class BatchClippingRequest(BaseModel):
     def validate_study(cls, v):
         if v and v not in ["preview", "review"]:
             raise ValueError('study must be either "preview", "review", or None')
+        return v
+    
+    @validator('clips')
+    def validate_clips(cls, v, values):
+        """클립 검증 - 단일 미디어 모드와 다중 미디어 모드 확인"""
+        media_path = values.get('media_path')
+        
+        for clip in v:
+            if media_path is None and clip.media_path is None:
+                raise ValueError('미디어 경로가 지정되지 않았습니다. media_path 또는 각 클립의 media_path를 지정해주세요.')
+            
+            # 다중 미디어 모드에서 각 클립의 미디어 경로 검증
+            if clip.media_path:
+                validated = MediaValidator.validate_media_path(clip.media_path)
+                if not validated:
+                    raise ValueError(f'Invalid or unauthorized media path: {clip.media_path}')
+        
         return v
 
 

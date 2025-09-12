@@ -15,7 +15,17 @@ from subtitle_pipeline import SubtitlePipeline, SubtitleType
 from img_tts_generator import ImgTTSGenerator
 from template_standards import TemplateStandards
 
+# Import database utilities for logging
+try:
+    from database_v2.models_v2 import DatabaseManager
+    from api.db_utils import add_processing_log, create_output_video
+    DB_AVAILABLE = True
+except ImportError:
+    DB_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
+if not DB_AVAILABLE:
+    logger.warning("Database modules not available, processing logs will not be saved to DB")
 
 
 class TemplateVideoEncoder(VideoEncoder):
@@ -50,6 +60,37 @@ class TemplateVideoEncoder(VideoEncoder):
         
         template = self.templates[template_name]
         logger.info(f"Using template: {template['name']} - {template['description']}")
+        
+        # Extract job_id from output path if available
+        job_id = None
+        if output_path:
+            output_parts = Path(output_path).parts
+            # 일반적으로: /output/YYYY-MM-DD/job_id/filename.mp4
+            if len(output_parts) >= 3:
+                potential_job_id = output_parts[-2]
+                # UUID 형식 검증
+                try:
+                    import uuid
+                    uuid.UUID(potential_job_id)
+                    job_id = potential_job_id
+                    self._current_job_id = job_id  # Store for individual clips
+                except ValueError:
+                    pass
+        
+        # Log to DB if available
+        if DB_AVAILABLE and job_id:
+            try:
+                with DatabaseManager.get_session() as session:
+                    add_processing_log(
+                        session=session,
+                        job_id=job_id,
+                        level="info",
+                        stage="template_encoding",
+                        message=f"Starting template encoding with {template_name}",
+                        details={"template": template_name, "media": media_path}
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to log to DB: {e}")
         
         # 현재 템플릿 이름 저장 (쇼츠 여부 확인용)
         self._current_template_name = template_name
@@ -203,10 +244,46 @@ class TemplateVideoEncoder(VideoEncoder):
                 raise Exception("Failed to concatenate clips")
             
             logger.info(f"Successfully created shadowing video: {output_path}")
+            
+            # Log successful completion to DB
+            if DB_AVAILABLE and job_id:
+                try:
+                    with DatabaseManager.get_session() as session:
+                        add_processing_log(
+                            session=session,
+                            job_id=job_id,
+                            level="info",
+                            stage="template_encoding_complete",
+                            message=f"Successfully created video with {template_name}",
+                            details={
+                                "output": str(output_path),
+                                "clips_count": len(temp_clips),
+                                "duration": duration
+                            }
+                        )
+                except Exception as e:
+                    logger.warning(f"Failed to log completion to DB: {e}")
+            
             return True
             
         except Exception as e:
             logger.error(f"Error creating video from template: {e}", exc_info=True)
+            
+            # Log error to DB
+            if DB_AVAILABLE and job_id:
+                try:
+                    with DatabaseManager.get_session() as session:
+                        add_processing_log(
+                            session=session,
+                            job_id=job_id,
+                            level="error",
+                            stage="template_encoding_error",
+                            message=f"Failed to create video with {template_name}",
+                            details={"error": str(e)}
+                        )
+                except Exception as db_e:
+                    logger.warning(f"Failed to log error to DB: {db_e}")
+            
             return False
             
         finally:
@@ -304,6 +381,33 @@ class TemplateVideoEncoder(VideoEncoder):
         dest_file = sub_dir / f"clip_{clip_number}_{index}.mp4"
         shutil.copy2(clip_path, str(dest_file))
         logger.debug(f"Saved: {dest_file.relative_to(base_dir)}")
+        
+        # Save to DB if available
+        if DB_AVAILABLE and hasattr(self, '_current_job_id') and self._current_job_id:
+            try:
+                with DatabaseManager.get_session() as session:
+                    # Determine effect and subtitle mode from clip type
+                    effect_type = 'none'
+                    subtitle_mode = clip_type
+                    
+                    if 'blur' in clip_type:
+                        effect_type = 'blur'
+                    elif 'crop' in clip_type:
+                        effect_type = 'crop'
+                    elif 'fit' in clip_type:
+                        effect_type = 'fit'
+                    
+                    create_output_video(
+                        session=session,
+                        job_id=self._current_job_id,
+                        video_type="individual_clip",
+                        file_path=str(dest_file),
+                        effect_type=effect_type,
+                        subtitle_mode=subtitle_mode,
+                        clip_index=index
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to save individual clip to DB: {e}")
     
     def _encode_still_frame_clip(self, input_path: str, output_path: str,
                                 start_time: float = None, duration: float = None,
@@ -359,8 +463,9 @@ class TemplateVideoEncoder(VideoEncoder):
                 '-level', TemplateStandards.STANDARD_VIDEO_LEVEL,
                 '-pix_fmt', TemplateStandards.STANDARD_PIX_FMT,
                 '-tune', 'film',
-                '-x264opts', f'keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40',
-                '-r', '30'
+                '-r', str(TemplateStandards.STANDARD_FRAMERATE),
+                '-vsync', 'cfr',
+                '-x264opts', f'keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40'
             ])
             
             # 오디오 설정
@@ -376,6 +481,13 @@ class TemplateVideoEncoder(VideoEncoder):
             
             # 비디오 필터 구성
             vf_filters = []
+            
+            # 비율 유지하면서 FHD로 스케일 (letterbox/pillarbox)
+            scale_filter = (
+                "scale=w=1920:h=1080:force_original_aspect_ratio=decrease,"
+                "pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black"
+            )
+            vf_filters.append(scale_filter)
             
             # 자막 추가 (ASS 파일 사용 - 기존 스타일 시스템 유지)
             if subtitle_file and os.path.exists(subtitle_file):
@@ -490,6 +602,8 @@ class TemplateVideoEncoder(VideoEncoder):
             '-level', TemplateStandards.STANDARD_VIDEO_LEVEL,
             '-pix_fmt', TemplateStandards.STANDARD_PIX_FMT,
             '-tune', 'film',
+            '-r', str(TemplateStandards.STANDARD_FRAMERATE),
+            '-vsync', 'cfr',
             '-x264opts', f'keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40',
             '-c:a', TemplateStandards.OUTPUT_AUDIO_CODEC,
             '-b:a', TemplateStandards.OUTPUT_AUDIO_BITRATE,
@@ -594,23 +708,26 @@ class TemplateVideoEncoder(VideoEncoder):
                     f"fontcolor=white:x=100:y={y_pos3}"  # 왼쪽 여백 100px
                 )
         else:
-            # 일반 템플릿: 좌우 배치, 모두 흰색
-            # 첫 번째 줄 (왼쪽 하단, 흰색)
+            # 일반 템플릿: 우측 상단에 줄바꿈으로 배치
+            y_offset = 80  # 상단에서의 시작 위치
+            
+            # 첫 번째 줄 (우측 상단, 흰색, 120pt 고정 - FHD 스케일링 후 적용)
             if title1:
                 # 이스케이프 처리
                 text1 = title1.replace(":", "\\:").replace("'", "\\'")
                 filters.append(
-                    f"drawtext=text='{text1}':fontfile='{font_file}':fontsize=40:"
-                    f"fontcolor=white:x=50:y=h-th-50"
+                    f"drawtext=text='{text1}':fontfile='{font_file}':fontsize=120:"
+                    f"fontcolor=white:borderw=3:bordercolor=black:x=w-text_w-80:y={y_offset}"
                 )
+                y_offset += 140  # 폰트 크기 + 여백
             
-            # 두 번째 줄 (오른쪽 하단, 흰색)
+            # 두 번째 줄 (첫 번째 줄 아래, 흰색, 80pt 고정 - FHD 스케일링 후 적용)
             if title2:
                 # 이스케이프 처리
                 text2 = title2.replace(":", "\\:").replace("'", "\\'")
                 filters.append(
-                    f"drawtext=text='{text2}':fontfile='{font_file}':fontsize=40:"
-                    f"fontcolor=white:x=w-text_w-50:y=h-th-50"
+                    f"drawtext=text='{text2}':fontfile='{font_file}':fontsize=80:"
+                    f"fontcolor=white:borderw=3:bordercolor=black:x=w-text_w-80:y={y_offset}"
                 )
         
         return ",".join(filters)
@@ -632,6 +749,13 @@ class TemplateVideoEncoder(VideoEncoder):
         
         # 비디오 필터 구성
         vf_filters = []
+        
+        # 비율 유지하면서 FHD로 스케일 (letterbox/pillarbox)
+        scale_filter = (
+            "scale=w=1920:h=1080:force_original_aspect_ratio=decrease,"
+            "pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black"
+        )
+        vf_filters.append(scale_filter)
         
         # 자막 추가
         if subtitle_file and os.path.exists(subtitle_file):
@@ -661,7 +785,8 @@ class TemplateVideoEncoder(VideoEncoder):
                     font_file = "NanumGothic"  # 폴백 폰트
                 
                 # 자막 모드 텍스트 추가 (좌측 상단, 페이드인 효과)
-                mode_text = "drawtext=text='{}':fontfile={}:fontsize=70:fontcolor=white@0.8:borderw=3:bordercolor=black:x=80:y=80:alpha='if(lt(t,0.5),t/0.5,1)'".format(mode_label, font_file)
+                # 해상도에 따라 폰트 크기 조정 (FHD 기준 70, 비율에 따라 조정)
+                mode_text = "drawtext=text='{}':fontfile={}:fontsize='70*min(1,min(w/1920,h/1080))':fontcolor=white@0.8:borderw=3:bordercolor=black:x='80*min(1,min(w/1920,h/1080))':y='80*min(1,min(w/1920,h/1080))':alpha='if(lt(t,0.5),t/0.5,1)'".format(mode_label, font_file)
                 vf_filters.append(mode_text)
                 logger.info(f"Adding subtitle mode indicator '{mode_label}' for {current_template}")
         
@@ -684,6 +809,8 @@ class TemplateVideoEncoder(VideoEncoder):
             '-level', TemplateStandards.STANDARD_VIDEO_LEVEL,
             '-pix_fmt', TemplateStandards.STANDARD_PIX_FMT,
             '-tune', 'film',
+            '-r', str(TemplateStandards.STANDARD_FRAMERATE),
+            '-vsync', 'cfr',
             '-x264opts', f'keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40',
             '-c:a', TemplateStandards.OUTPUT_AUDIO_CODEC,
             '-b:a', TemplateStandards.OUTPUT_AUDIO_BITRATE,
@@ -895,6 +1022,8 @@ asyncio.run(main())
             '-level', TemplateStandards.STANDARD_VIDEO_LEVEL,
             '-pix_fmt', TemplateStandards.STANDARD_PIX_FMT,
             '-tune', 'film',
+            '-r', str(TemplateStandards.STANDARD_FRAMERATE),
+            '-vsync', 'cfr',
             '-x264opts', f'keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40',
             '-c:a', TemplateStandards.OUTPUT_AUDIO_CODEC,
             '-b:a', TemplateStandards.OUTPUT_AUDIO_BITRATE,

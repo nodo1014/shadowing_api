@@ -17,6 +17,9 @@ import os
 import redis
 import signal
 import sys
+import time
+import json
+import uuid
 from pathlib import Path
 
 # Initialize database
@@ -41,7 +44,8 @@ from api.routes import (
     status_router,
     download_router,
     admin_router,
-    youtube_viewer_router
+    youtube_viewer_router,
+    file_management_router
 )
 
 # Rate limiter initialization
@@ -90,6 +94,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# API Request Logging Middleware
+# TODO: Enable after fixing imports
+# @app.middleware("http")
+# async def log_api_requests(request: Request, call_next):
+#     """Log all API requests to database"""
+#     return await call_next(request)
+
 # Serve frontend files
 app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
 app.mount("/admin", StaticFiles(directory=".", html=True), name="admin")
@@ -109,6 +120,7 @@ app.include_router(status_router)
 app.include_router(download_router)
 app.include_router(admin_router)
 app.include_router(youtube_viewer_router)
+app.include_router(file_management_router)
 
 # Startup event
 @app.on_event("startup")

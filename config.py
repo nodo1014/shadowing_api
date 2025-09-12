@@ -12,7 +12,8 @@ WORKERS = int(os.getenv('WORKERS', '4'))
 MAX_WORKERS = int(os.getenv('MAX_WORKERS', '4'))
 
 # 디렉토리 설정
-OUTPUT_DIR = Path(os.getenv('OUTPUT_DIR', '/mnt/ssd1t/output'))
+BASE_DIR = Path(__file__).parent
+OUTPUT_DIR = Path(os.getenv('OUTPUT_DIR', str(BASE_DIR / 'output')))
 MEDIA_ROOT = Path(os.getenv('MEDIA_ROOT', '/media'))
 
 # Redis 설정

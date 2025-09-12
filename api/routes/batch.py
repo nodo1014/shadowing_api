@@ -1,36 +1,57 @@
-"""
-Batch Clip Routes
-"""
-from fastapi import APIRouter, HTTPException, BackgroundTasks
-from typing import Optional
-import uuid
-import logging
 import asyncio
+import json
+import logging
+import uuid
+import time
 from datetime import datetime
 from pathlib import Path
+from typing import List, Optional
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from pydantic import BaseModel, Field, validator
 
-from api.models import BatchClippingRequest, ClippingResponse
+# Update imports to use proper paths
+from api.models import BatchClippingRequest, ClippingResponse, ClipData
 from api.models.validators import MediaValidator
 from api.config import OUTPUT_DIR, executor, TEMPLATE_MAPPING
 from api.utils import (
     generate_blank_text, 
-    update_job_status_both,
-    job_status,
-    cleanup_memory_jobs,
-    active_processes
+    update_job_status_both
+)
+from api.utils.id_generator import get_next_folder_id
+from api.db_utils import (
+    get_client_info
 )
 
 # Import required modules from parent directory
 import sys
 sys.path.append(str(Path(__file__).parent.parent.parent))
-from ass_generator import ASSGenerator
+
 from video_encoder import VideoEncoder
 from template_video_encoder import TemplateVideoEncoder
 from review_clip_generator import ReviewClipGenerator
 from enhanced_batch_renderer import EnhancedBatchRenderer
+# DB imports 비활성화
 
 router = APIRouter(prefix="/api", tags=["Clipping"])
 logger = logging.getLogger(__name__)
+
+
+class MultimediaBatchRequest(BaseModel):
+    """다중 미디어 배치 요청 모델"""
+    clips: List[ClipData] = Field(..., description="각 클립에 media_path가 포함된 클립 데이터 리스트")
+    template_number: int = Field(1, ge=1, le=100, description="템플릿 번호")
+    individual_clips: bool = Field(False, description="개별 클립 저장 여부")
+    title_1: Optional[str] = Field(None, description="타이틀 첫 번째 줄")
+    title_2: Optional[str] = Field(None, description="타이틀 두 번째 줄")
+    title_3: Optional[str] = Field(None, description="타이틀 세 번째 줄")
+    study: Optional[str] = Field(None, description="학습 모드")
+    
+    @validator('clips')
+    def validate_clips_have_media(cls, v):
+        for i, clip in enumerate(v):
+            if not clip.media_path:
+                raise ValueError(f'클립 {i+1}에 media_path가 지정되지 않았습니다.')
+        return v
 
 
 @router.post("/clip/batch",
@@ -38,37 +59,48 @@ logger = logging.getLogger(__name__)
              summary="배치 비디오 클립 생성 요청")
 async def create_batch_clips(
     request: BatchClippingRequest,
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks,
+    req: Request
 ):
     """
     여러 개의 비디오 클립을 한 번에 생성합니다.
     각 클립은 독립적인 파일로 생성됩니다.
     """
-    # Job ID 생성
+    # Job ID는 여전히 UUID 사용 (DB 키로 사용)
     job_id = str(uuid.uuid4())
     
-    # Debug logging
+    # 폴더명은 날짜별 순차 번호 사용
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    folder_id = get_next_folder_id(date_str)
+    
+    # API 요청 로깅
+    request_start_time = time.time()
+    client_info = get_client_info(req)
     logger.info(f"[Job {job_id}] Batch request - Type: {request.template_number}, Clips: {len(request.clips)}")
-    if request.title_1 or request.title_2:
-        logger.info(f"[Job {job_id}] Titles - title_1: '{request.title_1}', title_2: '{request.title_2}'")
-    else:
+    
+    # 타이틀 정보 로깅
+    if not request.title_1 and not request.title_2:
         logger.info(f"[Job {job_id}] No titles provided")
-    for i, clip in enumerate(request.clips):
-        logger.info(f"  Clip {i+1}: Keywords: {clip.keywords}")
+    else:
+        logger.info(f"[Job {job_id}] Title 1: {request.title_1}, Title 2: {request.title_2}")
     
-    # 메모리 정리
-    cleanup_memory_jobs()
+    # 각 클립의 키워드 로깅
+    for i, clip in enumerate(request.clips, 1):
+        logger.info(f"  Clip {i}: Keywords: {clip.keywords}")
     
-    # 작업 상태 초기화
-    job_status[job_id] = {
-        "status": "pending",
+    # 메모리 상태 저장
+    from api.utils.job_management import job_status
+    job_data = {
+        "job_id": job_id,
+        "status": "accepted", 
         "progress": 0,
-        "message": "배치 작업 대기 중...",
-        "output_files": [],
-        "total_clips": len(request.clips),
-        "completed_clips": 0,
-        "error": None
+        "message": f"배치 클리핑 작업이 시작되었습니다. (총 {len(request.clips)}개)",
+        "created_at": datetime.now().isoformat(),
+        "folder_id": folder_id  # 순차 폴더 ID 추가
     }
+    job_status[job_id] = job_data
+    
+    # DB 저장 비활성화
     
     # 백그라운드 작업 시작
     background_tasks.add_task(
@@ -77,31 +109,45 @@ async def create_batch_clips(
         request
     )
     
-    return ClippingResponse(
+    # API 응답 로깅
+    response_time_ms = int((time.time() - request_start_time) * 1000)
+    response = ClippingResponse(
         job_id=job_id,
         status="accepted",
         message=f"배치 클리핑 작업이 시작되었습니다. (총 {len(request.clips)}개)"
     )
+    
+    # API 응답 업데이트 - DB 저장 비활성화
+    
+    return response
 
 
 async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
     """배치 비디오 클리핑 처리"""
     try:
         # 작업 시작
-        job_status[job_id]["status"] = "processing"
-        job_status[job_id]["message"] = "배치 클리핑 준비 중..."
+        update_job_status_both(job_id, "processing", 5, message="배치 클리핑 준비 중...")
         
-        # 미디어 경로 검증
-        media_path = MediaValidator.validate_media_path(request.media_path)
-        if not media_path:
-            raise ValueError(f"Invalid media path: {request.media_path}")
+        # DB 업데이트 비활성화
         
-        # 날짜별 디렉토리 구조: /output/YYYY-MM-DD/job_id
+        # 단일 미디어 모드인 경우 미디어 경로 검증
+        base_media_path = None
+        if request.media_path:
+            base_media_path = MediaValidator.validate_media_path(request.media_path)
+            if not base_media_path:
+                raise ValueError(f"Invalid media path: {request.media_path}")
+            
+        # DB 저장 비활성화
+        
+        # 날짜별 디렉토리 구조: /output/YYYY-MM-DD/folder_id
         date_str = datetime.now().strftime("%Y-%m-%d")
         daily_dir = OUTPUT_DIR / date_str
         daily_dir.mkdir(exist_ok=True)
         
-        job_dir = daily_dir / job_id
+        # job_status에서 folder_id 가져오기
+        from api.utils.job_management import job_status
+        folder_id = job_status.get(job_id, {}).get('folder_id', job_id)
+        job_dir = daily_dir / folder_id
         job_dir.mkdir(exist_ok=True)
         
         output_files = []
@@ -139,82 +185,64 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
                 success = await review_generator.create_review_clip(
                     clips_data=clips_data_for_review,
                     output_path=str(review_clip_path),
-                    title=review_title,
-                    template_number=request.template_number,
-                    video_path=request.video_path,
-                    clip_timestamps=clip_timestamps
+                    title_text=review_title,
+                    is_preview=(request.study == "preview")
                 )
                 
-                if success and review_clip_path.exists():
-                    logger.info(f"Review clip created: {review_clip_path}")
-                    # 리뷰 클립을 임시 저장 (나중에 위치에 따라 추가)
-                    job_status[job_id]["review_clip_data"] = {
-                        "type": "study",
+                if success:
+                    logger.info(f"[Job {job_id}] Study clip created: {review_clip_path}")
+                    review_data = {
                         "file": str(review_clip_path),
-                        "description": f"{review_title} 클립"
+                        "description": f"{mode_text} 클립"
                     }
                 else:
-                    logger.warning("Failed to create review clip, continuing without it")
-                    review_clip_path = None
-                    
+                    logger.error(f"[Job {job_id}] Study clip creation failed")
             except Exception as e:
-                logger.error(f"Review clip creation error: {e}")
-                # 리뷰 클립 실패해도 계속 진행
-                review_clip_path = None
+                logger.error(f"[Job {job_id}] Study clip error: {e}")
         
-        ass_generator = ASSGenerator()
-        video_encoder = VideoEncoder()
-        
-        # 각 클립 처리
-        for idx, clip_data in enumerate(request.clips):
-            clip_num = idx + 1
-            job_status[job_id]["progress"] = int((idx / len(request.clips)) * 90)
+        # 개별 클립 처리
+        for clip_num, clip_data in enumerate(request.clips, 1):
+            job_status[job_id]["progress"] = 10 + int(80 * (clip_num - 1) / len(request.clips))
             job_status[job_id]["message"] = f"클립 {clip_num}/{len(request.clips)} 처리 중..."
             
-            # 클립별 디렉토리
+            # 각 클립을 위한 디렉토리 생성
             clip_dir = job_dir / f"clip_{clip_num:03d}"
             clip_dir.mkdir(exist_ok=True)
             
-            # 텍스트 블랭크 처리 (Type 2, 3인 경우 자동 생성)
+            # 모든 템플릿에 대해 클립 생성
             text_eng_blank = None
-            if request.template_number in [2, 3]:
-                text_eng_blank = generate_blank_text(clip_data.text_eng, clip_data.keywords)
-            
-            # 쇼츠용 줄바꿈 처리 함수
-            def add_line_breaks(text: str, max_chars: int = 20) -> str:
-                """긴 텍스트에 줄바꿈 추가"""
-                if not text or len(text) <= max_chars:
-                    return text
-                
-                words = text.split()
-                lines = []
-                current_line = []
-                current_length = 0
-                
-                for word in words:
-                    word_length = len(word)
-                    if current_length + word_length + len(current_line) > max_chars:
-                        if current_line:
-                            lines.append(' '.join(current_line))
-                            current_line = [word]
-                            current_length = word_length
+            if request.template_number == 2 and clip_data.keywords:
+                # 블랭크 텍스트 생성 로직은 Type 2에만 적용
+                def wrap_text(text, max_chars=30):
+                    words = text.split()
+                    lines = []
+                    current_line = []
+                    current_length = 0
+                    
+                    for word in words:
+                        word_length = len(word)
+                        if current_length + word_length + len(current_line) > max_chars:
+                            if current_line:
+                                lines.append(' '.join(current_line))
+                                current_line = [word]
+                                current_length = word_length
+                            else:
+                                lines.append(word)
+                                current_line = []
+                                current_length = 0
                         else:
-                            lines.append(word)
-                            current_line = []
-                            current_length = 0
-                    else:
-                        current_line.append(word)
-                        current_length += word_length
-                
-                if current_line:
-                    lines.append(' '.join(current_line))
-                
-                return '\\N'.join(lines)
+                            current_line.append(word)
+                            current_length += word_length
+                    
+                    if current_line:
+                        lines.append(' '.join(current_line))
+                    
+                    return '\\N'.join(lines)
             
-            # 타이틀 로깅 추가
+            # 타이틀 로깅 추가 (모든 템플릿)
             logger.info(f"[Job {job_id}] Clip {clip_num} - title_1: '{request.title_1}', title_2: '{request.title_2}'")
             
-            # 자막 데이터
+            # 자막 데이터 (모든 템플릿)
             subtitle_data = {
                 'start_time': 0,
                 'end_time': clip_data.end_time - clip_data.start_time,
@@ -223,10 +251,7 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
                 'note': clip_data.note,
                 'eng': clip_data.text_eng,
                 'kor': clip_data.text_kor,
-                'eng_text_l': clip_data.text_eng,  # Long version (일반)
-                'eng_text_s': add_line_breaks(clip_data.text_eng, 20),  # Short version (쇼츠)
-                'kor_text_l': clip_data.text_kor,  # Long version (일반)
-                'kor_text_s': add_line_breaks(clip_data.text_kor, 15),  # Short version (쇼츠)
+                'is_shorts': request.template_number in [11, 12, 13],  # 쇼츠 여부
                 'keywords': clip_data.keywords,  # Type 2를 위한 키워드
                 'template_number': request.template_number,  # 클리핑 타입 전달
                 'text_eng_blank': text_eng_blank,  # Type 2를 위한 blank 텍스트
@@ -235,7 +260,7 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
                 'title_3': request.title_3   # 배치 전체 타이틀 세 번째 줄 (설명용)
             }
             
-            # 비디오 클리핑 - 템플릿 기반 (자막 파일 자동 생성)
+            # 비디오 클리핑 - 템플릿 기반 (자막 파일 자동 생성) (모든 템플릿)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"{timestamp}_tp_{request.template_number}_c{clip_num:03d}.mp4"
             output_path = clip_dir / filename
@@ -249,10 +274,20 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
             else:
                 template_name = f"template_{request.template_number}"
             
+            # 다중 미디어 모드 지원: 클립별 미디어 경로 또는 기본 미디어 경로 사용
+            clip_media_path = clip_data.media_path if clip_data.media_path else base_media_path
+            if not clip_media_path:
+                raise ValueError(f"No media path specified for clip {clip_num}")
+            
+            # 미디어 경로 검증
+            validated_media_path = MediaValidator.validate_media_path(clip_media_path)
+            if not validated_media_path:
+                raise ValueError(f"Invalid media path for clip {clip_num}: {clip_media_path}")
+            
             # 템플릿을 사용하여 비디오 생성
             success = template_encoder.create_from_template(
                 template_name=template_name,
-                media_path=str(media_path),
+                media_path=str(validated_media_path),
                 subtitle_data=subtitle_data,
                 output_path=str(output_path),
                 start_time=clip_data.start_time,
@@ -269,29 +304,35 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
                     "text_kor": clip_data.text_kor
                 })
                 job_status[job_id]["completed_clips"] = clip_num
+                
+                # DB 저장 비활성화
             else:
                 raise Exception(f"클립 {clip_num} 생성 실패")
+            
+            # DB 저장 비활성화
         
         # study 모드인 경우 preview는 처음에, review는 마지막에 추가
-        if review_clip_path and job_status[job_id].get("review_clip_data"):
-            review_data = job_status[job_id]["review_clip_data"]
+        if review_clip_path and review_clip_path.exists():
             review_entry = {
                 "clip_number": 0 if request.study == "preview" else len(output_files) + 1,
                 "file": str(Path(review_data["file"]).relative_to(OUTPUT_DIR.parent)),
                 "text_eng": review_data["description"],
                 "text_kor": review_data["description"]
             }
-            
             if request.study == "preview":
-                # preview는 처음에 삽입
+                # preview는 맨 앞에 추가
                 output_files.insert(0, review_entry)
             else:
                 # review는 마지막에 추가
                 output_files.append(review_entry)
         
-        # 배치 렌더링 처리 (쇼츠 템플릿인 경우)
-        if request.template_number in [11, 12, 13]:  # 쇼츠 템플릿
-            logger.info(f"[Job {job_id}] Starting batch rendering for shorts...")
+        # 배치 렌더링 처리 (모든 템플릿에서 배치 생성 시)
+        # 개별 클립이 1개 이상인 경우 배치 머지 수행
+        individual_clips = [f for f in output_files if f["clip_number"] > 0 and f["clip_number"] < 999]
+        logger.info(f"[Job {job_id}] Individual clips count: {len(individual_clips)}, output_files: {[f['clip_number'] for f in output_files]}")
+        
+        if len(individual_clips) >= 1:
+            logger.info(f"[Job {job_id}] Starting batch rendering...")
             job_status[job_id]["progress"] = 92
             job_status[job_id]["message"] = "배치 렌더링 중..."
             
@@ -330,17 +371,69 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
                     "text_kor": f"배치 비디오 ({len(video_files)}개 클립)"
                 })
                 logger.info(f"Batch video created: {batch_output_path}")
+                
+                # DB 저장 비활성화
         
         # 작업 완료
-        job_status[job_id]["status"] = "completed"
-        job_status[job_id]["progress"] = 100
-        job_status[job_id]["message"] = f"배치 클리핑이 완료되었습니다. (총 {len(output_files)}개)"
+        update_job_status_both(
+            job_id, 
+            "completed", 
+            100,
+            message=f"배치 클리핑이 완료되었습니다. (총 {len(output_files)}개)"
+        )
         job_status[job_id]["output_files"] = output_files
         
+        # DB 업데이트 비활성화
+        
         logger.info(f"[Job {job_id}] Batch clipping completed: {len(output_files)} files")
-    
+        
     except Exception as e:
         logger.error(f"[Job {job_id}] Batch clipping error: {str(e)}")
-        job_status[job_id]["status"] = "failed"
-        job_status[job_id]["error"] = str(e)
-        job_status[job_id]["message"] = "배치 클리핑 실패"
+        update_job_status_both(
+            job_id,
+            "failed",
+            0,
+            message="배치 클리핑 실패",
+            error_message=str(e)
+        )
+        
+        # DB 업데이트 비활성화
+
+
+def _get_subtitle_mode(template_number: int) -> str:
+    """템플릿 번호로 자막 모드 추측"""
+    if template_number == 1:
+        return "nosub"
+    elif template_number == 2:
+        return "korean"
+    elif template_number in [3, 11, 12, 13]:
+        return "both"
+    return "both"
+
+
+@router.post("/clip/batch-multi",
+             response_model=ClippingResponse,
+             summary="다중 미디어 배치 클립 생성")
+async def create_multi_media_batch_clips(
+    request: MultimediaBatchRequest,
+    background_tasks: BackgroundTasks,
+    req: Request
+):
+    """
+    여러 미디어에서 클립을 추출하여 배치로 생성합니다.
+    각 클립마다 개별 media_path가 필요합니다.
+    """
+    # BatchClippingRequest로 변환
+    batch_request = BatchClippingRequest(
+        media_path=None,  # 다중 미디어 모드이므로 None
+        clips=request.clips,
+        template_number=request.template_number,
+        individual_clips=request.individual_clips,
+        title_1=request.title_1,
+        title_2=request.title_2,
+        title_3=request.title_3,
+        study=request.study
+    )
+    
+    # 기존 배치 처리 함수 재사용
+    return await create_batch_clips(batch_request, background_tasks, req)

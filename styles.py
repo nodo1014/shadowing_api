@@ -18,11 +18,11 @@ SUBTITLE_STYLES = {
         "alignment": 2,  # Bottom center
         "margin_l": 50,
         "margin_r": 50,
-        "margin_v": 270  # FHD 기준 하단 여백 (220px 위로)
+        "margin_v": 320  # FHD 기준 하단 여백 (270 + 50 = 320px 위로)
     },
     "korean": {
         "font_name": "Noto Sans CJK KR",
-        "font_size": 110,  # FHD 기준 적정 크기 80->110
+        "font_size": 90,  # FHD 기준 적정 크기 80->110
         "bold": True,
         "primary_color": "&H00D7FF&",  # Gold (BGR: 00D7FF = FFD700 in RGB)
         "secondary_color": "&H000000FF",
@@ -33,7 +33,7 @@ SUBTITLE_STYLES = {
         "alignment": 2,  # Bottom center
         "margin_l": 50,
         "margin_r": 50,
-        "margin_v": 140  # FHD 기준 하단 여백 (140px 위로, 영어와 80px 간격)
+        "margin_v": 190  # FHD 기준 하단 여백 (140 + 50 = 190px 위로, 영어와 130px 간격)
     },
     "note": {
         "font_name": "Noto Sans CJK KR",
@@ -45,14 +45,14 @@ SUBTITLE_STYLES = {
         "back_color": "&H00000000",
         "outline": 3,  # 두꺼운 테두리
         "shadow": 0,  # No shadow for clean look
-        "alignment": 7,  # Top left (7 = top left)
+        "alignment": 2,  # Bottom center (2 = bottom center)
         "margin_l": 80,  # FHD 기준 좌측 여백
         "margin_r": 80,
-        "margin_v": 80  # FHD 기준 상단 여백
+        "margin_v": 50  # FHD 기준 하단 여백
     },
     "label": {
         "font_name": "Noto Sans CJK KR",
-        "font_size": 70,
+        "font_size": 110,
         "bold": True,
         "primary_color": "&HFFFFFF&",  # White
         "secondary_color": "&H000000FF",
@@ -60,7 +60,7 @@ SUBTITLE_STYLES = {
         "back_color": "&H00000000",
         "outline": 3,
         "shadow": 0,
-        "alignment": 7,  # Top left
+        "alignment": 9,  # Top right
         "margin_l": 80,
         "margin_r": 80,
         "margin_v": 80
@@ -88,7 +88,7 @@ SHORTS_ADJUSTMENTS = {
             "margin_v": 120  # 상단 여백 증가 (상단 UI 피하기)
         },
         "label": {
-            "font_size": 50,  # 모바일용 축소
+            "font_size": 70,  # 모바일용 축소 (110 -> 70)
             "margin_v": 120  # 상단 여백 증가
         }
     },

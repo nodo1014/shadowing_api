@@ -32,7 +32,8 @@ class TemplateStandards:
     # 비디오 추가 옵션
     STANDARD_VIDEO_PROFILE = 'high'
     STANDARD_VIDEO_LEVEL = '4.1'
-    STANDARD_GOP_SIZE = 250  # 키프레임 간격
+    STANDARD_GOP_SIZE = 60  # 키프레임 간격 (2초 @ 30fps)
+    STANDARD_FRAMERATE = 30  # 표준 프레임레이트
     
     # 무음 생성용 표준 오디오 설정
     SILENCE_SAMPLE_RATE = 44100
