@@ -483,7 +483,7 @@ class EnhancedBatchRenderer:
                     '-profile:v', 'high',
                     '-level', '4.1',
                     '-pix_fmt', 'yuv420p',
-                    '-s', '1920x1080',  # 출력 해상도 고정
+                    # 해상도는 원본 유지 (고정하지 않음)
                     '-r', '30',  # 프레임레이트 고정
                     '-g', '60',  # 키프레임 간격
                     '-bf', '2',  # B-프레임
@@ -533,7 +533,7 @@ class EnhancedBatchRenderer:
                         '-profile:v', 'high',
                         '-level', '4.1',
                         '-pix_fmt', 'yuv420p',
-                        '-s', '1920x1080',  # 출력 해상도 고정
+                        # 해상도는 원본 유지 (고정하지 않음)
                         '-r', '30',
                         '-c:a', 'aac',
                         '-b:a', '192k',
