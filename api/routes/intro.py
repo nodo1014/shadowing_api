@@ -249,17 +249,29 @@ async def create_intro_video(request: IntroVideoRequest):
         logger.info("Starting intro video generation")
         logger.info(f"Request: {request.dict()}")
         
-        # 출력 디렉토리 설정
-        output_dir = Path("/home/kang/dev_amd/shadowing_maker_xls/output/intro_videos")
-        output_dir.mkdir(parents=True, exist_ok=True)
+        # 날짜별 디렉토리 생성
+        now = datetime.now()
+        date_str = now.strftime("%Y-%m-%d")
+        time_str = now.strftime("%H%M%S")
+        unique_suffix = uuid.uuid4().hex[:6]
         
-        # 고유 ID 생성
-        unique_id = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex[:6]}"
+        # 기본 출력 디렉토리
+        base_output_dir = Path("/home/kang/dev_amd/shadowing_maker_xls/output/intro_videos")
         
-        # TTS 생성 - 영어와 한글 분리
-        english_tts_path = output_dir / f"intro_tts_en_{unique_id}.mp3"
-        korean_tts_path = output_dir / f"intro_tts_ko_{unique_id}.mp3"
-        tts_path = output_dir / f"intro_tts_{unique_id}.mp3"
+        # 날짜별 디렉토리
+        date_dir = base_output_dir / date_str
+        
+        # 시간별 작업 디렉토리 (각 요청마다 고유한 폴더)
+        job_dir = date_dir / f"{time_str}_{unique_suffix}"
+        job_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 작업 ID (폴더명과 동일)
+        job_id = f"{time_str}_{unique_suffix}"
+        
+        # TTS 파일 경로 설정
+        english_tts_path = job_dir / "audio_en.mp3"
+        korean_tts_path = job_dir / "audio_ko.mp3"
+        tts_path = job_dir / "audio_combined.mp3"
         
         # 1. 영어 패턴 문장 TTS 생성
         logger.info(f"[TTS] 영어 TTS 생성 시작: {request.headerText}")
@@ -320,17 +332,17 @@ async def create_intro_video(request: IntroVideoRequest):
         logger.info(f"[TTS] 전체 오디오 길이: {audio_duration:.2f}초")
         
         # 비디오 생성 파라미터 설정
-        video_path = output_dir / f"intro_video_{unique_id}.mp4"
+        video_path = job_dir / "intro_video.mp4"
         
         # 배경 이미지 처리
         background_image = None
         if request.firstSentenceMediaInfo and request.template in ["shorts_thumbnail", "youtube_thumbnail"]:
             # 첫 번째 문장의 미디어에서 썸네일 추출
-            thumbnail_path = output_dir / f"intro_bg_{unique_id}.jpg"
+            bg_thumbnail_path = job_dir / "background.jpg"
             background_image = await extract_thumbnail_from_media(
                 request.firstSentenceMediaInfo.mediaPath, 
                 request.firstSentenceMediaInfo.startTime,
-                str(thumbnail_path)
+                str(bg_thumbnail_path)
             )
         
         # TTS 파일이 FFmpeg에 전달되는지 확인
@@ -377,13 +389,14 @@ async def create_intro_video(request: IntroVideoRequest):
             raise HTTPException(status_code=500, detail=f"Video generation failed: {e.stderr}")
         
         # 썸네일 생성
-        thumbnail_path = output_dir / f"intro_thumbnail_{unique_id}.jpg"
+        thumbnail_path = job_dir / "thumbnail.jpg"
         await extract_thumbnail(str(video_path), str(thumbnail_path))
         
-        # 결과 반환
+        # 결과 반환 (폴더 구조 정보 포함)
         result_data = {
             "video": {
-                "id": unique_id,
+                "id": job_id,
+                "jobFolder": str(job_dir),
                 "videoFilePath": str(video_path),
                 "ttsFilePath": str(tts_path),
                 "thumbnailPath": str(thumbnail_path),
@@ -408,17 +421,32 @@ async def create_intro_video(request: IntroVideoRequest):
 @router.get("/intro-videos/{video_id}")
 async def get_intro_video(video_id: str):
     """생성된 인트로 비디오 정보 조회"""
-    output_dir = Path("/home/kang/dev_amd/shadowing_maker_xls/output/intro_videos")
-    video_path = output_dir / f"intro_video_{video_id}.mp4"
+    base_output_dir = Path("/home/kang/dev_amd/shadowing_maker_xls/output/intro_videos")
     
-    if not video_path.exists():
-        raise HTTPException(status_code=404, detail="Video not found")
+    # video_id는 'HHMMSS_unique' 형식이므로, 날짜별 폴더를 검색해야 함
+    # 최근 7일간의 폴더를 검색
+    from datetime import datetime, timedelta
     
-    return {
-        "id": video_id,
-        "videoFilePath": str(video_path),
-        "status": "available"
-    }
+    for days_back in range(7):
+        date = datetime.now() - timedelta(days=days_back)
+        date_str = date.strftime("%Y-%m-%d")
+        date_dir = base_output_dir / date_str
+        
+        if date_dir.exists():
+            job_dir = date_dir / video_id
+            if job_dir.exists():
+                video_path = job_dir / "intro_video.mp4"
+                if video_path.exists():
+                    return {
+                        "id": video_id,
+                        "jobFolder": str(job_dir),
+                        "videoFilePath": str(video_path),
+                        "thumbnailPath": str(job_dir / "thumbnail.jpg"),
+                        "ttsFilePath": str(job_dir / "audio_combined.mp3"),
+                        "status": "available"
+                    }
+    
+    raise HTTPException(status_code=404, detail="Video not found")
 
 
 class MergeVideosRequest(BaseModel):
