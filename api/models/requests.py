@@ -48,6 +48,12 @@ class BatchClippingRequest(BaseModel):
     title_2: Optional[str] = Field(None, description="타이틀 두 번째 줄 (쇼츠: 골드 90pt, 일반: 오른쪽 흰색 40pt)")
     title_3: Optional[str] = Field(None, description="타이틀 세 번째 줄 (쇼츠 템플릿 2,3용: 흰색 60pt, \\n 지원)")
     study: Optional[str] = Field(None, description="학습 모드 (preview: 맨 앞 미리보기, review: 맨 뒤 복습, None: 사용안함)")
+    include_intro: bool = Field(False, description="인트로 포함 여부")
+    intro_header_text: Optional[str] = Field(None, description="인트로 영어 헤더 텍스트")
+    intro_korean_text: Optional[str] = Field(None, description="인트로 한국어 텍스트")
+    intro_explanation: Optional[str] = Field(None, description="인트로 설명 텍스트")
+    intro_use_blur: bool = Field(True, description="인트로 배경 흐림 효과")
+    intro_use_gradient: bool = Field(False, description="인트로 그라데이션 효과")
     
     @validator('media_path')
     def validate_media_path(cls, v):
