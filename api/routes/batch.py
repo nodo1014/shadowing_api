@@ -495,17 +495,26 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
             # 개별 비디오 파일 경로 목록
             video_files = []
             
-            # 인트로가 있으면 맨 앞에 추가
+            # 병합 순서 정리
+            logger.info(f"[Job {job_id}] === 비디오 병합 순서 ===")
+            
+            # 1. 인트로가 있으면 맨 앞에 추가
             if intro_clip_path and intro_clip_path.exists():
                 video_files.append(str(intro_clip_path))
-                logger.info(f"[Job {job_id}] Added intro video to batch")
+                logger.info(f"[Job {job_id}] 1. 인트로: {intro_clip_path.name}")
             
-            # 나머지 클립들 추가
-            for file_info in output_files:
-                if file_info["clip_number"] > 0:  # 리뷰 클립은 제외
+            # 2. 나머지 클립들 추가 (순서대로)
+            sorted_files = sorted(output_files, key=lambda x: x["clip_number"])
+            for idx, file_info in enumerate(sorted_files):
+                # 개별 클립 (1~998) 또는 study 클립 (0: preview, 999 이상: review)
+                if file_info["clip_number"] != 999:  # 배치 파일 자체는 제외
                     full_path = OUTPUT_DIR.parent / file_info["file"]
                     if full_path.exists():
                         video_files.append(str(full_path))
+                        clip_type = "Preview" if file_info["clip_number"] == 0 else ("Review" if file_info["clip_number"] > 900 else f"클립 {file_info['clip_number']}")
+                        logger.info(f"[Job {job_id}] {len(video_files)}. {clip_type}: {full_path.name}")
+            
+            logger.info(f"[Job {job_id}] === 총 {len(video_files)}개 비디오 병합 예정 ===")
             
             # 배치 비디오 생성
             loop = asyncio.get_event_loop()
