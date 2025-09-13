@@ -53,7 +53,7 @@ class IntroVideoRequest(BaseModel):
     firstSentenceMediaInfo: Optional[FirstSentenceMediaInfo] = Field(None, description="첫 번째 문장의 미디어 정보")
     useBlur: Optional[bool] = Field(True, description="배경 흐림 효과 사용 여부")
     useGradient: Optional[bool] = Field(False, description="그라데이션 효과 사용 여부")
-    useCenterCrop: Optional[bool] = Field(False, description="쇼츠용 세로 꽉 채우기 (체크 시 9:16 크롭)")
+    useCenterCrop: Optional[bool] = Field(True, description="쇼츠용 세로 중앙 크롭 사용 여부")
 
 
 async def generate_tts(text: str, language: str, output_path: str) -> float:
@@ -213,17 +213,12 @@ async def generate_video_fade_in(params: dict) -> str:
         # 배경 이미지가 있는 경우
         is_shorts = width < height  # 쇼츠 형식인지 확인
         
-        if is_shorts:
-            if use_center_crop:
-                # 체크 시: 쇼츠용 세로 꽉 채우기 (9:16 크롭)
-                # 원본 영상의 세로 높이를 기준으로 9:16 비율로 중앙 크롭
-                filter_str = f"[0:v]crop='min(iw,ih*9/16)':'ih',scale={width}:{height},setsar=1"
-                logger.info("[FFmpeg] Using 9:16 full height crop for shorts")
-            else:
-                # 기본값: 정사각형 중앙 크롭
-                # 원본 영상의 세로 높이 기준 정사각형(1:1) 중앙 추출 후 쇼츠 중앙 배치
-                filter_str = f"[0:v]crop=ih:ih,scale={width}:{width},pad={width}:{height}:0:(oh-ih)/2:black,setsar=1"
-                logger.info("[FFmpeg] Using square center crop for shorts (default)")
+        if is_shorts and use_center_crop:
+            # 쇼츠용 세로 중앙 크롭 (16:9 영상에서 9:16 부분 추출)
+            # 원본 영상의 세로 높이를 기준으로 9:16 비율로 중앙 크롭
+            # crop=width:height:x:y (x,y는 자동 중앙 정렬)
+            filter_str = f"[0:v]crop='min(iw,ih*9/16)':'ih',scale={width}:{height},setsar=1"
+            logger.info("[FFmpeg] Using center crop for shorts format")
         else:
             # 유튜브 형식: 전체 이미지를 축소하여 중앙 배치
             filter_str = f"[0:v]scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1"
