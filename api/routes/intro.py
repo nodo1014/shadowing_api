@@ -205,11 +205,16 @@ async def generate_video_fade_in(params: dict) -> str:
         # 배경 이미지가 있는 경우
         filter_str = f"[0:v]scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},setsar=1"
         
+        logger.info(f"[FFmpeg] Background effects - blur: {use_blur}, gradient: {use_gradient}")
+        
         if use_blur:
-            filter_str += ",colorlevels=rimin=0:gimin=0:bimin=0:rimax=0.8:gimax=0.8:bimax=0.8"
+            # eq 필터를 사용한 밝기 조정 (brightness=-0.7 = 70% 어둡게)
+            filter_str += ",eq=brightness=-0.7"
+            logger.info("[FFmpeg] Applied darkening effect (brightness -70%)")
         
         if use_gradient:
             filter_str += f",drawbox=0:0:{width//2}:{height}:black:t=fill,drawbox={width//2}:0:{width//2}:{height}:black@0.3:t=fill"
+            logger.info("[FFmpeg] Applied gradient effect")
         
         # ASS 자막 추가
         ass_path_str = str(ass_path)
@@ -367,6 +372,7 @@ async def create_intro_video(request: IntroVideoRequest):
         }
         
         logger.info(f"[FFmpeg] 비디오 파라미터: format={request.format}, duration={audio_duration:.2f}s, resolution={video_params['width']}x{video_params['height']}")
+        logger.info(f"[FFmpeg] 배경 효과: background_image={background_image is not None}, use_blur={request.useBlur}, use_gradient={request.useGradient}")
         
         # 템플릿에 따른 비디오 생성
         if request.template == "fade_in" or (request.template in ["shorts_thumbnail", "youtube_thumbnail"] and background_image):
