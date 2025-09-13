@@ -53,7 +53,7 @@ class IntroVideoRequest(BaseModel):
     firstSentenceMediaInfo: Optional[FirstSentenceMediaInfo] = Field(None, description="첫 번째 문장의 미디어 정보")
     useBlur: Optional[bool] = Field(True, description="배경 흐림 효과 사용 여부")
     useGradient: Optional[bool] = Field(False, description="그라데이션 효과 사용 여부")
-    useCenterCrop: Optional[bool] = Field(True, description="쇼츠용 세로 중앙 크롭 사용 여부")
+    useCenterCrop: Optional[bool] = Field(True, description="쇼츠용 정사각형 중앙 크롭 사용 여부")
 
 
 async def generate_tts(text: str, language: str, output_path: str) -> float:
@@ -100,14 +100,12 @@ async def generate_tts(text: str, language: str, output_path: str) -> float:
 
 async def extract_thumbnail_from_media(media_path: str, start_time: float, output_path: str) -> str:
     """미디어에서 썸네일 추출"""
-    # -ss를 입력 앞에 두면 더 빠름 (입력 seek)
     command = [
         "ffmpeg", "-y",
-        "-ss", str(start_time),  # 입력 앞에 -ss를 두면 빠른 seek
         "-i", media_path,
+        "-ss", str(start_time),
         "-vframes", "1",
-        "-q:v", "2",  # 품질을 약간 낮춰서 속도 향상
-        "-vf", "scale=-1:720",  # 썸네일 크기 제한
+        "-q:v", "1",
         output_path
     ]
     
@@ -214,11 +212,11 @@ async def generate_video_fade_in(params: dict) -> str:
         is_shorts = width < height  # 쇼츠 형식인지 확인
         
         if is_shorts and use_center_crop:
-            # 쇼츠용 세로 중앙 크롭 (16:9 영상에서 9:16 부분 추출)
-            # 원본 영상의 세로 높이를 기준으로 9:16 비율로 중앙 크롭
-            # crop=width:height:x:y (x,y는 자동 중앙 정렬)
-            filter_str = f"[0:v]crop='min(iw,ih*9/16)':'ih',scale={width}:{height},setsar=1"
-            logger.info("[FFmpeg] Using center crop for shorts format")
+            # 쇼츠용 정사각형 중앙 크롭
+            # 원본 영상의 세로 높이 기준 정사각형(1:1) 중앙 추출 후 쇼츠 중앙 배치
+            # crop=ih:ih로 정사각형 크롭, 그 후 패딩 추가하여 9:16 비율 맞춤
+            filter_str = f"[0:v]crop=ih:ih,scale={width}:{width},pad={width}:{height}:0:(oh-ih)/2:black,setsar=1"
+            logger.info("[FFmpeg] Using square center crop for shorts format")
         else:
             # 기존 방식: 전체 이미지를 축소하여 중앙 배치
             filter_str = f"[0:v]scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1"
