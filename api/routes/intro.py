@@ -210,7 +210,8 @@ async def generate_video_fade_in(params: dict) -> str:
         if is_shorts and use_center_crop:
             # 쇼츠용 세로 중앙 크롭 (16:9 영상에서 9:16 부분 추출)
             # 원본 영상의 세로 높이를 기준으로 9:16 비율로 중앙 크롭
-            filter_str = f"[0:v]crop=ih*9/16:ih,scale={width}:{height},setsar=1"
+            # crop=width:height:x:y (x,y는 자동 중앙 정렬)
+            filter_str = f"[0:v]crop='min(iw,ih*9/16)':'ih',scale={width}:{height},setsar=1"
             logger.info("[FFmpeg] Using center crop for shorts format")
         else:
             # 기존 방식: 전체 이미지를 축소하여 중앙 배치
@@ -406,7 +407,8 @@ async def create_intro_video(request: IntroVideoRequest):
             ffmpeg_command = await generate_video_fade_in(video_params)
         
         # FFmpeg 실행
-        logger.info(f"Executing FFmpeg command: {ffmpeg_command}")
+        logger.info(f"[FFmpeg] Executing command...")
+        logger.debug(f"[FFmpeg] Full command: {ffmpeg_command}")
         
         try:
             # shell=True를 사용하여 복잡한 명령어 실행
@@ -414,6 +416,8 @@ async def create_intro_video(request: IntroVideoRequest):
             logger.info(f"Video generated successfully: {video_path}")
             if result.stdout:
                 logger.debug(f"FFmpeg stdout: {result.stdout}")
+            if result.stderr:
+                logger.info(f"FFmpeg stderr (not error): {result.stderr}")
         except subprocess.CalledProcessError as e:
             logger.error(f"FFmpeg failed: {e.stderr}")
             raise HTTPException(status_code=500, detail=f"Video generation failed: {e.stderr}")
