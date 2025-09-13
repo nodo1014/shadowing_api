@@ -100,18 +100,24 @@ async def generate_tts(text: str, language: str, output_path: str) -> float:
 
 async def extract_thumbnail_from_media(media_path: str, start_time: float, output_path: str) -> str:
     """미디어에서 썸네일 추출"""
+    # -ss를 입력 앞에 두면 더 빠름 (입력 seek)
     command = [
         "ffmpeg", "-y",
+        "-ss", str(start_time),  # 입력 앞에 -ss를 두면 빠른 seek
         "-i", media_path,
-        "-ss", str(start_time),
         "-vframes", "1",
-        "-q:v", "1",
+        "-q:v", "2",  # 품질을 약간 낮춰서 속도 향상
+        "-vf", "scale=-1:720",  # 썸네일 크기 제한
         output_path
     ]
     
     try:
-        subprocess.run(command, capture_output=True, text=True, check=True)
+        # 10초 타임아웃 설정
+        subprocess.run(command, capture_output=True, text=True, check=True, timeout=10)
         return output_path
+    except subprocess.TimeoutExpired:
+        logger.error(f"Thumbnail extraction timed out after 10 seconds")
+        return None
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to extract thumbnail: {e.stderr}")
         return None
