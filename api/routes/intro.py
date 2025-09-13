@@ -53,6 +53,7 @@ class IntroVideoRequest(BaseModel):
     firstSentenceMediaInfo: Optional[FirstSentenceMediaInfo] = Field(None, description="첫 번째 문장의 미디어 정보")
     useBlur: Optional[bool] = Field(True, description="배경 흐림 효과 사용 여부")
     useGradient: Optional[bool] = Field(False, description="그라데이션 효과 사용 여부")
+    useCenterCrop: Optional[bool] = Field(True, description="쇼츠용 세로 중앙 크롭 사용 여부")
 
 
 async def generate_tts(text: str, language: str, output_path: str) -> float:
@@ -187,6 +188,7 @@ async def generate_video_fade_in(params: dict) -> str:
     background_image = params.get('background_image')
     use_blur = params.get('use_blur', True)
     use_gradient = params.get('use_gradient', False)
+    use_center_crop = params.get('use_center_crop', True)
     width = params.get('width', 1080)
     height = params.get('height', 1920)
     
@@ -203,9 +205,19 @@ async def generate_video_fade_in(params: dict) -> str:
     
     if background_image:
         # 배경 이미지가 있는 경우
-        filter_str = f"[0:v]scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1"
+        is_shorts = width < height  # 쇼츠 형식인지 확인
         
-        logger.info(f"[FFmpeg] Background effects - blur: {use_blur}, gradient: {use_gradient}")
+        if is_shorts and use_center_crop:
+            # 쇼츠용 세로 중앙 크롭 (16:9 영상에서 9:16 부분 추출)
+            # 원본 영상의 세로 높이를 기준으로 9:16 비율로 중앙 크롭
+            filter_str = f"[0:v]crop=ih*9/16:ih,scale={width}:{height},setsar=1"
+            logger.info("[FFmpeg] Using center crop for shorts format")
+        else:
+            # 기존 방식: 전체 이미지를 축소하여 중앙 배치
+            filter_str = f"[0:v]scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1"
+            logger.info("[FFmpeg] Using full image with padding")
+        
+        logger.info(f"[FFmpeg] Background effects - blur: {use_blur}, gradient: {use_gradient}, center_crop: {use_center_crop}")
         
         if use_blur:
             # eq 필터를 사용한 밝기 조정 (brightness=-0.7 = 70% 어둡게)
@@ -379,7 +391,8 @@ async def create_intro_video(request: IntroVideoRequest):
             'height': 1080 if request.format == 'youtube' else 1920,
             'background_image': background_image,
             'use_blur': request.useBlur,
-            'use_gradient': request.useGradient
+            'use_gradient': request.useGradient,
+            'use_center_crop': request.useCenterCrop
         }
         
         logger.info(f"[FFmpeg] 비디오 파라미터: format={request.format}, duration={audio_duration:.2f}s, resolution={video_params['width']}x{video_params['height']}")

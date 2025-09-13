@@ -54,6 +54,7 @@ class BatchClippingRequest(BaseModel):
     intro_explanation: Optional[str] = Field(None, description="인트로 설명 텍스트")
     intro_use_blur: bool = Field(True, description="인트로 배경 흐림 효과")
     intro_use_gradient: bool = Field(False, description="인트로 그라데이션 효과")
+    intro_use_center_crop: bool = Field(True, description="인트로 쇼츠용 세로 중앙 크롭")
     
     @validator('media_path')
     def validate_media_path(cls, v):
