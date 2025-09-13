@@ -28,6 +28,13 @@ async def get_job_status(job_id: str):
     status_data = get_job_status_util(job_id)
     
     if status_data:
+        # job_id가 이미 status_data에 있으면 제거
+        if 'job_id' in status_data:
+            status_data.pop('job_id')
+        
+        # output_files 확인을 위한 로그
+        logger.info(f"Status data for job {job_id}: output_files={status_data.get('output_files', 'NOT FOUND')}")
+        
         return JobStatus(
             job_id=job_id,
             **status_data
@@ -44,7 +51,6 @@ async def get_job_status(job_id: str):
                 message=db_job.get('message', ''),
                 output_file=db_job.get('output_file'),
                 output_files=db_job.get('output_files', []),
-                individual_clips=db_job.get('individual_clips', []),
                 error=db_job.get('error'),
                 created_at=db_job.get('created_at'),
                 updated_at=db_job.get('updated_at')

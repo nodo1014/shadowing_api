@@ -465,7 +465,7 @@ class TemplateVideoEncoder(VideoEncoder):
                 '-tune', 'film',
                 '-r', str(TemplateStandards.STANDARD_FRAMERATE),
                 '-vsync', 'cfr',
-                '-x264opts', f'keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40'
+                '-x264opts', f'keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40:threads=12:lookahead-threads=2:rc-lookahead=20:ref=3:bframes=3:b-adapt=1:me=hex:subme=7'
             ])
             
             # 오디오 설정
@@ -604,7 +604,7 @@ class TemplateVideoEncoder(VideoEncoder):
             '-tune', 'film',
             '-r', str(TemplateStandards.STANDARD_FRAMERATE),
             '-vsync', 'cfr',
-            '-x264opts', f'keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40',
+            '-x264opts', f'keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40:threads=12:lookahead-threads=2:rc-lookahead=20:ref=3:bframes=3:b-adapt=1:me=hex:subme=7',
             '-c:a', TemplateStandards.OUTPUT_AUDIO_CODEC,
             '-b:a', TemplateStandards.OUTPUT_AUDIO_BITRATE,
             '-ar', str(TemplateStandards.OUTPUT_SAMPLE_RATE),
@@ -711,23 +711,23 @@ class TemplateVideoEncoder(VideoEncoder):
             # 일반 템플릿: 우측 상단에 줄바꿈으로 배치
             y_offset = 80  # 상단에서의 시작 위치
             
-            # 첫 번째 줄 (우측 상단, 흰색, 120pt 고정 - FHD 스케일링 후 적용)
+            # 첫 번째 줄 (우측 상단, 흰색, 80pt 고정 - FHD 스케일링 후 적용)
             if title1:
                 # 이스케이프 처리
                 text1 = title1.replace(":", "\\:").replace("'", "\\'")
                 filters.append(
-                    f"drawtext=text='{text1}':fontfile='{font_file}':fontsize=120:"
-                    f"fontcolor=white:borderw=3:bordercolor=black:x=w-text_w-80:y={y_offset}"
+                    f"drawtext=text='{text1}':fontfile='{font_file}':fontsize=80:"
+                    f"fontcolor=#C0C0C0:borderw=3:bordercolor=black:x=w-text_w-80:y={y_offset}"
                 )
-                y_offset += 140  # 폰트 크기 + 여백
+                y_offset += 100  # 폰트 크기 + 여백
             
-            # 두 번째 줄 (첫 번째 줄 아래, 흰색, 80pt 고정 - FHD 스케일링 후 적용)
+            # 두 번째 줄 (첫 번째 줄 아래, 흰색, 60pt 고정 - FHD 스케일링 후 적용)
             if title2:
                 # 이스케이프 처리
                 text2 = title2.replace(":", "\\:").replace("'", "\\'")
                 filters.append(
-                    f"drawtext=text='{text2}':fontfile='{font_file}':fontsize=80:"
-                    f"fontcolor=white:borderw=3:bordercolor=black:x=w-text_w-80:y={y_offset}"
+                    f"drawtext=text='{text2}':fontfile='{font_file}':fontsize=60:"
+                    f"fontcolor=#C0C0C0:borderw=3:bordercolor=black:x=w-text_w-80:y={y_offset}"
                 )
         
         return ",".join(filters)
@@ -811,7 +811,7 @@ class TemplateVideoEncoder(VideoEncoder):
             '-tune', 'film',
             '-r', str(TemplateStandards.STANDARD_FRAMERATE),
             '-vsync', 'cfr',
-            '-x264opts', f'keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40',
+            '-x264opts', f'keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40:threads=12:lookahead-threads=2:rc-lookahead=20:ref=3:bframes=3:b-adapt=1:me=hex:subme=7',
             '-c:a', TemplateStandards.OUTPUT_AUDIO_CODEC,
             '-b:a', TemplateStandards.OUTPUT_AUDIO_BITRATE,
             '-ar', str(TemplateStandards.OUTPUT_SAMPLE_RATE),
@@ -1024,7 +1024,7 @@ asyncio.run(main())
             '-tune', 'film',
             '-r', str(TemplateStandards.STANDARD_FRAMERATE),
             '-vsync', 'cfr',
-            '-x264opts', f'keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40',
+            '-x264opts', f'keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40:threads=12:lookahead-threads=2:rc-lookahead=20:ref=3:bframes=3:b-adapt=1:me=hex:subme=7',
             '-c:a', TemplateStandards.OUTPUT_AUDIO_CODEC,
             '-b:a', TemplateStandards.OUTPUT_AUDIO_BITRATE,
             '-ar', str(TemplateStandards.OUTPUT_SAMPLE_RATE),

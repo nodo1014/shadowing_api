@@ -100,6 +100,10 @@ def update_job_status_both(job_id: str, status: str, progress: int = None,
         }
     
     job_data = job_status[job_id]
+    
+    # 기존 데이터 보존 (output_files 등)
+    existing_output_files = job_data.get('output_files')
+    
     job_data['status'] = status
     job_data['updated_at'] = datetime.now().isoformat()
     
@@ -111,6 +115,10 @@ def update_job_status_both(job_id: str, status: str, progress: int = None,
         job_data['output_file'] = output_file
     if error_message is not None:
         job_data['error'] = error_message
+    
+    # output_files가 있었다면 보존
+    if existing_output_files is not None:
+        job_data['output_files'] = existing_output_files
     
     # DB 업데이트 비활성화 - 메모리만 사용
     

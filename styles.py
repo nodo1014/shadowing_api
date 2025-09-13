@@ -7,7 +7,7 @@ ASS 자막 파일의 스타일 정의를 관리
 SUBTITLE_STYLES = {
     "english": {
         "font_name": "Noto Sans CJK KR",
-        "font_size": 130,  # FHD 기준 적정 크기 100->130
+        "font_size": 110,  # FHD 기준 적정 크기
         "bold": True,
         "primary_color": "&HFFFFFF&",  # White
         "secondary_color": "&H000000FF",
@@ -18,7 +18,7 @@ SUBTITLE_STYLES = {
         "alignment": 2,  # Bottom center
         "margin_l": 50,
         "margin_r": 50,
-        "margin_v": 320  # FHD 기준 하단 여백 (270 + 50 = 320px 위로)
+        "margin_v": 420  # FHD 기준 하단 여백 (420px 위로 - 50px 더 위로 이동)
     },
     "korean": {
         "font_name": "Noto Sans CJK KR",
@@ -33,7 +33,7 @@ SUBTITLE_STYLES = {
         "alignment": 2,  # Bottom center
         "margin_l": 50,
         "margin_r": 50,
-        "margin_v": 190  # FHD 기준 하단 여백 (140 + 50 = 190px 위로, 영어와 130px 간격)
+        "margin_v": 170  # FHD 기준 하단 여백 (170px 위로, 영어와 200px 간격)
     },
     "note": {
         "font_name": "Noto Sans CJK KR",

@@ -375,13 +375,16 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
                 # DB 저장 비활성화
         
         # 작업 완료
+        # output_files를 먼저 설정
+        job_status[job_id]["output_files"] = output_files
+        
+        # 그 다음에 상태 업데이트 (기존 output_files가 유지됨)
         update_job_status_both(
             job_id, 
             "completed", 
             100,
             message=f"배치 클리핑이 완료되었습니다. (총 {len(output_files)}개)"
         )
-        job_status[job_id]["output_files"] = output_files
         
         # DB 업데이트 비활성화
         

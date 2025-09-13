@@ -1,7 +1,7 @@
 """
 API Response Models
 """
-from typing import Optional
+from typing import Optional, List, Any
 from pydantic import BaseModel
 
 
@@ -19,7 +19,11 @@ class JobStatus(BaseModel):
     progress: int
     message: str
     output_file: Optional[str] = None
+    output_files: Optional[List[Any]] = None  # 배치 작업의 출력 파일 목록
     individual_clips_dir: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
     error: Optional[str] = None
+    
+    class Config:
+        extra = "allow"  # 추가 필드 허용

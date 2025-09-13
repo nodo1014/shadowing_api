@@ -24,8 +24,8 @@ class TemplateStandards:
     # 표준 설정값들 - 모든 템플릿에서 동일하게 사용
     STANDARD_VIDEO_WIDTH = 1920
     STANDARD_VIDEO_HEIGHT = 1080
-    STANDARD_VIDEO_CRF = 22  # 모든 템플릿에서 동일한 품질 사용
-    STANDARD_VIDEO_PRESET = 'medium'  # 품질과 속도의 균형
+    STANDARD_VIDEO_CRF = 23  # 약간의 품질 손실로 속도 향상
+    STANDARD_VIDEO_PRESET = 'veryfast'  # AMD 5600G 최적화 - 속도 최우선
     STANDARD_VIDEO_CODEC = 'libx264'
     STANDARD_PIX_FMT = 'yuv420p'
     

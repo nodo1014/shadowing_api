@@ -48,6 +48,7 @@ from api.routes import (
     file_management_router,
     intro_router
 )
+from api.routes.files import router as files_router
 
 # Rate limiter initialization
 limiter = Limiter(key_func=get_remote_address)
@@ -123,6 +124,7 @@ app.include_router(admin_router)
 app.include_router(youtube_viewer_router)
 app.include_router(file_management_router)
 app.include_router(intro_router)
+app.include_router(files_router)
 
 # Startup event
 @app.on_event("startup")

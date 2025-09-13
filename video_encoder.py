@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import List, Dict, Optional
 from subtitle_pipeline import SubtitlePipeline, SubtitleType
 from template_standards import TemplateStandards
+from deepl_translator import SubtitleTranslator
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class VideoEncoder:
                 "audio_codec": TemplateStandards.OUTPUT_AUDIO_CODEC,
                 "audio_bitrate": TemplateStandards.OUTPUT_AUDIO_BITRATE,
                 # 추가 품질 옵션
-                "x264opts": f"keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40",
+                "x264opts": f"keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40:threads=12:lookahead-threads=2:rc-lookahead=20:ref=3:bframes=3:b-adapt=1:me=hex:subme=7",
                 "tune": "film"  # 영화/드라마에 최적화
             },
             "with_subtitle": {
@@ -45,7 +46,7 @@ class VideoEncoder:
                 "audio_codec": TemplateStandards.OUTPUT_AUDIO_CODEC,
                 "audio_bitrate": TemplateStandards.OUTPUT_AUDIO_BITRATE,
                 # 추가 품질 옵션
-                "x264opts": f"keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40",
+                "x264opts": f"keyint={TemplateStandards.STANDARD_GOP_SIZE}:min-keyint=24:scenecut=40:threads=12:lookahead-threads=2:rc-lookahead=20:ref=3:bframes=3:b-adapt=1:me=hex:subme=7",
                 "tune": "film"  # 영화/드라마에 최적화
             }
         }
@@ -139,8 +140,15 @@ class VideoEncoder:
                     # Load original translated subtitles to find matching subtitle
                     translated_json = ass_path.replace('.ass', '_translated.json')
                     if os.path.exists(translated_json):
-                        with open(translated_json, 'r', encoding='utf-8') as f:
-                            subtitles_data = json.load(f)
+                        # DeepL 번역기를 사용하여 자막 로드 (text_en이 없으면 자동 번역)
+                        try:
+                            subtitle_translator = SubtitleTranslator()
+                            subtitles_data = subtitle_translator.load_and_translate_subtitles(translated_json)
+                        except Exception as e:
+                            logger.warning(f"Failed to use DeepL translator: {e}")
+                            # DeepL 사용 불가시 원본 파일 로드
+                            with open(translated_json, 'r', encoding='utf-8') as f:
+                                subtitles_data = json.load(f)
                         
                         # Find the subtitle that matches this time range
                         # Use the original time range (without padding) to find the correct subtitle
@@ -713,8 +721,15 @@ class VideoEncoder:
                 # Load original translated subtitles to find matching subtitle
                 translated_json = ass_path.replace('.ass', '_translated.json')
                 if os.path.exists(translated_json):
-                    with open(translated_json, 'r', encoding='utf-8') as f:
-                        subtitles_data = json.load(f)
+                    # DeepL 번역기를 사용하여 자막 로드 (text_en이 없으면 자동 번역)
+                    try:
+                        subtitle_translator = SubtitleTranslator()
+                        subtitles_data = subtitle_translator.load_and_translate_subtitles(translated_json)
+                    except Exception as e:
+                        logger.warning(f"Failed to use DeepL translator: {e}")
+                        # DeepL 사용 불가시 원본 파일 로드
+                        with open(translated_json, 'r', encoding='utf-8') as f:
+                            subtitles_data = json.load(f)
                     
                     # Find the subtitle that matches this time range
                     matching_subtitle = None
