@@ -226,11 +226,12 @@ async def generate_video_fade_in(params: dict) -> str:
         ass_path_str = str(ass_path)
         filter_str += f",ass={ass_path_str}"
         
-        command = f"""ffmpeg -y -loop 1 -i "{background_image}" -i "{audio_path}" -filter_complex "{filter_str}" -map 0:v -map 1:a -t {duration} -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 192k "{output_path}" """
+        # TemplateStandards와 동일한 인코딩 설정 사용
+        command = f"""ffmpeg -y -loop 1 -i "{background_image}" -i "{audio_path}" -filter_complex "{filter_str}" -map 0:v -map 1:a -t {duration} -c:v libx264 -preset veryfast -crf 23 -profile:v high -level 4.1 -pix_fmt yuv420p -g 60 -r 30 -c:a aac -b:a 192k -ar 48000 -ac 2 -movflags +faststart "{output_path}" """
     else:
         # 배경 이미지가 없는 경우
         ass_path_str = str(ass_path)
-        command = f"""ffmpeg -y -f lavfi -i "color=c=black:s={width}x{height}:d={duration}" -i "{audio_path}" -vf "ass={ass_path_str}" -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 192k -shortest "{output_path}" """
+        command = f"""ffmpeg -y -f lavfi -i "color=c=black:s={width}x{height}:d={duration}:r=30" -i "{audio_path}" -vf "ass={ass_path_str}" -c:v libx264 -preset veryfast -crf 23 -profile:v high -level 4.1 -pix_fmt yuv420p -g 60 -r 30 -c:a aac -b:a 192k -ar 48000 -ac 2 -movflags +faststart -shortest "{output_path}" """
     
     return command
 
@@ -314,6 +315,10 @@ async def create_intro_video(request: IntroVideoRequest):
             "-filter_complex", 
             "[0:a]apad=pad_dur=0.5[a0];[a0][1:a]concat=n=2:v=0:a=1[out]",
             "-map", "[out]",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-ar", "48000",
+            "-ac", "2",
             str(tts_path)
         ]
         

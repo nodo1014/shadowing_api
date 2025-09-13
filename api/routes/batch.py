@@ -207,6 +207,10 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
                     "-i", str(korean_tts_path),
                     "-filter_complex", "[0:a]apad=pad_dur=0.5[a0];[a0][1:a]concat=n=2:v=0:a=1[out]",
                     "-map", "[out]",
+                    "-c:a", "aac",
+                    "-b:a", "192k",
+                    "-ar", "48000",
+                    "-ac", "2",
                     str(combined_tts_path)
                 ]
                 subprocess.run(concat_cmd, check=True)
@@ -279,10 +283,11 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
                     
                     filter_str += f",ass={ass_path}"
                     
-                    ffmpeg_cmd = f"""ffmpeg -y -loop 1 -i "{background_image}" -i "{combined_tts_path}" -filter_complex "{filter_str}" -map 0:v -map 1:a -t {audio_duration} -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 192k "{intro_video_path}" """
+                    # TemplateStandards와 동일한 인코딩 설정 사용 (특히 오디오)
+                    ffmpeg_cmd = f"""ffmpeg -y -loop 1 -i "{background_image}" -i "{combined_tts_path}" -filter_complex "{filter_str}" -map 0:v -map 1:a -t {audio_duration} -c:v libx264 -preset veryfast -crf 23 -profile:v high -level 4.1 -pix_fmt yuv420p -g 60 -r 30 -c:a aac -b:a 192k -ar 48000 -ac 2 -movflags +faststart "{intro_video_path}" """
                 else:
                     # 검은 배경
-                    ffmpeg_cmd = f"""ffmpeg -y -f lavfi -i "color=c=black:s={width}x{height}:d={audio_duration}" -i "{combined_tts_path}" -vf "ass={ass_path}" -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 192k -shortest "{intro_video_path}" """
+                    ffmpeg_cmd = f"""ffmpeg -y -f lavfi -i "color=c=black:s={width}x{height}:d={audio_duration}:r=30" -i "{combined_tts_path}" -vf "ass={ass_path}" -c:v libx264 -preset veryfast -crf 23 -profile:v high -level 4.1 -pix_fmt yuv420p -g 60 -r 30 -c:a aac -b:a 192k -ar 48000 -ac 2 -movflags +faststart -shortest "{intro_video_path}" """
                 
                 subprocess.run(ffmpeg_cmd, shell=True, check=True)
                 
