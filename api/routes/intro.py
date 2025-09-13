@@ -203,7 +203,7 @@ async def generate_video_fade_in(params: dict) -> str:
     
     if background_image:
         # 배경 이미지가 있는 경우
-        filter_str = f"[0:v]scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},setsar=1"
+        filter_str = f"[0:v]scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1"
         
         logger.info(f"[FFmpeg] Background effects - blur: {use_blur}, gradient: {use_gradient}")
         
