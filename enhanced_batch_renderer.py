@@ -469,8 +469,7 @@ class EnhancedBatchRenderer:
                 concat_file = f.name
             
             try:
-                # 모든 비디오를 동일한 형식으로 재인코딩하여 concat
-                # 이렇게 하면 코덱, 프레임레이트, 해상도 등이 통일되어 싱크 문제 해결
+                # 먼저 concat demuxer를 시도하되, vsync와 async 옵션 추가
                 cmd = [
                     'ffmpeg', '-y',
                     '-f', 'concat',
@@ -485,6 +484,7 @@ class EnhancedBatchRenderer:
                     '-pix_fmt', 'yuv420p',
                     # 해상도는 원본 유지 (고정하지 않음)
                     '-r', '30',  # 프레임레이트 고정
+                    '-vsync', 'cfr',  # 일정한 프레임레이트 강제
                     '-g', '60',  # 키프레임 간격
                     '-bf', '2',  # B-프레임
                     # 오디오 설정
@@ -492,12 +492,11 @@ class EnhancedBatchRenderer:
                     '-b:a', '192k',
                     '-ar', '48000',
                     '-ac', '2',  # 스테레오
-                    '-af', 'aresample=async=1:min_hard_comp=0.100000:first_pts=0',  # 오디오 싱크 보정
                     # 추가 설정
                     '-movflags', '+faststart',
                     '-max_muxing_queue_size', '1024',
                     '-avoid_negative_ts', 'make_zero',  # 타임스탬프 문제 해결
-                    '-fflags', '+genpts',  # PTS 생성
+                    '-fflags', '+genpts+igndts',  # PTS 생성, DTS 무시
                     '-threads', '0',  # 자동 스레드
                     output_path
                 ]
