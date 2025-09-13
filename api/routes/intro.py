@@ -213,8 +213,14 @@ async def generate_video_fade_in(params: dict) -> str:
             logger.info("[FFmpeg] Applied darkening effect (brightness -70%)")
         
         if use_gradient:
-            filter_str += f",drawbox=0:0:{width//2}:{height}:black:t=fill,drawbox={width//2}:0:{width//2}:{height}:black@0.3:t=fill"
-            logger.info("[FFmpeg] Applied gradient effect")
+            # 선형 그라데이션: 여러 개의 반투명 박스를 겹쳐서 점진적 효과 생성
+            gradient_steps = 10
+            for i in range(gradient_steps):
+                x_pos = int(width * i / gradient_steps)
+                box_width = int(width / gradient_steps)
+                opacity = 0.6 * (1 - i / gradient_steps)  # 왼쪽이 더 어둡게
+                filter_str += f",drawbox={x_pos}:0:{box_width}:{height}:black@{opacity:.2f}:t=fill"
+            logger.info("[FFmpeg] Applied linear gradient effect (left to right)")
         
         # ASS 자막 추가
         ass_path_str = str(ass_path)
