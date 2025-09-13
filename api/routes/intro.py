@@ -336,8 +336,8 @@ async def create_intro_video(request: IntroVideoRequest):
         
         # 배경 이미지 처리
         background_image = None
-        if request.firstSentenceMediaInfo and request.template in ["shorts_thumbnail", "youtube_thumbnail"]:
-            # 첫 번째 문장의 미디어에서 썸네일 추출
+        if request.firstSentenceMediaInfo:
+            # 첫 번째 문장의 미디어에서 썸네일 추출 (모든 템플릿에서 사용 가능)
             bg_thumbnail_path = job_dir / "background.jpg"
             background_image = await extract_thumbnail_from_media(
                 request.firstSentenceMediaInfo.mediaPath, 
