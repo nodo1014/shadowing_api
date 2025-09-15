@@ -103,25 +103,19 @@
       "gap_duration": 0.5
     },
     "template_3": {
-      "name": "Progressive Learning",
-      "description": "무자막 2회, 블랭크+한글 2회, 영한자막 2회",
+      "name": "Simple Two-Step",
+      "description": "블랭크+한글 1회, 영한자막 1회 (2단계 간단 학습)",
       "clips": [
         {
-          "subtitle_mode": "no_subtitle",
-          "folder_name": "1_nosub",
-          "count": 2,
-          "subtitle_type": null
-        },
-        {
           "subtitle_mode": "blank_with_korean",
-          "folder_name": "2_blank_kor",
-          "count": 2,
+          "folder_name": "1_blank_kor",
+          "count": 1,
           "subtitle_type": "blank_korean"
         },
         {
           "subtitle_mode": "both_subtitle",
-          "folder_name": "3_both",
-          "count": 2,
+          "folder_name": "2_both",
+          "count": 1,
           "subtitle_type": "full"
         }
       ],
@@ -182,24 +176,18 @@
       }
     },
     "template_3_shorts": {
-      "name": "Progressive Learning (Shorts)",
-      "description": "무자막 1회, 블랭크+한글 1회, 영한자막 1회 (쇼츠용)",
+      "name": "Simple Two-Step (Shorts)",
+      "description": "블랭크+한글 1회, 영한자막 1회 (쇼츠용 2단계 간단 학습)",
       "clips": [
         {
-          "subtitle_mode": "no_subtitle",
-          "folder_name": "1_nosub",
-          "count": 1,
-          "subtitle_type": null
-        },
-        {
           "subtitle_mode": "blank_with_korean",
-          "folder_name": "2_blank_kor",
+          "folder_name": "1_blank_kor",
           "count": 1,
           "subtitle_type": "blank_korean"
         },
         {
           "subtitle_mode": "both_subtitle",
-          "folder_name": "3_both",
+          "folder_name": "2_both",
           "count": 1,
           "subtitle_type": "full"
         }

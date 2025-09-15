@@ -73,12 +73,20 @@ class SubtitlePipeline:
         is_shorts = base_subtitle_data.get('is_shorts', False)
         if is_shorts:
             # 쇼츠용 짧은 버전 우선 사용
-            self.english = base_subtitle_data.get('eng_text_s', base_subtitle_data.get('english', ''))
-            self.korean = base_subtitle_data.get('kor_text_s', base_subtitle_data.get('korean', ''))
+            self.english = base_subtitle_data.get('text_eng') or \
+                         base_subtitle_data.get('eng_text_s') or \
+                         base_subtitle_data.get('english', '')
+            self.korean = base_subtitle_data.get('text_kor') or \
+                        base_subtitle_data.get('kor_text_s') or \
+                        base_subtitle_data.get('korean', '')
         else:
             # 일반용 긴 버전 사용
-            self.english = base_subtitle_data.get('eng_text_l', base_subtitle_data.get('english', ''))
-            self.korean = base_subtitle_data.get('kor_text_l', base_subtitle_data.get('korean', ''))
+            self.english = base_subtitle_data.get('text_eng') or \
+                         base_subtitle_data.get('eng_text_l') or \
+                         base_subtitle_data.get('english', '')
+            self.korean = base_subtitle_data.get('text_kor') or \
+                        base_subtitle_data.get('kor_text_l') or \
+                        base_subtitle_data.get('korean', '')
         
         self.note = base_subtitle_data.get('note', '')
         self.keywords = base_subtitle_data.get('keywords') or []

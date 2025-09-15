@@ -15,6 +15,7 @@ class ClipData(BaseModel):
     text_kor: str = Field(..., description="한글 자막")
     note: Optional[str] = Field(None, description="메모")
     keywords: Optional[List[str]] = Field(None, description="키워드 리스트")
+    aspect_ratio: Optional[str] = Field(None, description="화면 비율 처리 방식 (템플릿 10용) - center: 중앙크롭(기본), origin: 원본비율, top: 상단기준, bottom: 하단기준, zoom: 80%확대, wide: 와이드크롭")
     
     @validator('end_time')
     def validate_end_time(cls, v, values):
@@ -52,9 +53,10 @@ class BatchClippingRequest(BaseModel):
     intro_header_text: Optional[str] = Field(None, description="인트로 영어 헤더 텍스트")
     intro_korean_text: Optional[str] = Field(None, description="인트로 한국어 텍스트")
     intro_explanation: Optional[str] = Field(None, description="인트로 설명 텍스트")
-    intro_use_blur: bool = Field(True, description="인트로 배경 흐림 효과")
+    intro_use_darken: bool = Field(True, description="인트로 배경 어둡게 효과")
     intro_use_gradient: bool = Field(False, description="인트로 그라데이션 효과")
-    intro_use_center_crop: bool = Field(True, description="인트로 쇼츠용 세로 중앙 크롭")
+    intro_use_center_crop: bool = Field(False, description="인트로 쇼츠용 세로 꽉 채우기 (체크 시 9:16 크롭, 기본값은 1:1 정사각형)")
+    intro_thumbnail_crop_mode: Optional[str] = Field("square", description="인트로 썸네일 크롭 모드: square (1:1), vertical (9:16), original (원본비율)")
     
     @validator('media_path')
     def validate_media_path(cls, v):

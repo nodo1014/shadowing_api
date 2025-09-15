@@ -175,9 +175,10 @@ async def process_batch_clipping(job_id: str, request: BatchClippingRequest):
                     "explanation": request.intro_explanation or "",
                     "template": "fade_in",
                     "format": video_format,
-                    "useBlur": request.intro_use_blur,
+                    "useDarken": request.intro_use_darken,
                     "useGradient": request.intro_use_gradient,
-                    "useCenterCrop": request.intro_use_center_crop
+                    "useCenterCrop": request.intro_use_center_crop,
+                    "thumbnailCropMode": getattr(request, 'intro_thumbnail_crop_mode', 'square')
                 }
                 
                 # firstSentenceMediaInfo 추가 (배경 이미지용)

@@ -51,9 +51,11 @@ class IntroVideoRequest(BaseModel):
     template: str = Field("fade_in", description="템플릿 타입")
     format: str = Field("shorts", pattern="^(shorts|youtube)$", description="비디오 포맷")
     firstSentenceMediaInfo: Optional[FirstSentenceMediaInfo] = Field(None, description="첫 번째 문장의 미디어 정보")
-    useBlur: Optional[bool] = Field(True, description="배경 흐림 효과 사용 여부")
+    useDarken: Optional[bool] = Field(True, description="배경 어둡게 효과 사용 여부")
+    useBlur: Optional[bool] = Field(None, description="[Deprecated] useDarken을 사용하세요")
     useGradient: Optional[bool] = Field(False, description="그라데이션 효과 사용 여부")
-    useCenterCrop: Optional[bool] = Field(True, description="쇼츠용 세로 중앙 크롭 사용 여부")
+    useCenterCrop: Optional[bool] = Field(False, description="쇼츠용 세로 꽉 채우기 (체크 시 9:16 크롭, 기본값은 1:1 정사각형)")
+    thumbnailCropMode: Optional[str] = Field("square", description="썸네일 크롭 모드: square (1:1), vertical (9:16), original (원본비율)")
 
 
 async def generate_tts(text: str, language: str, output_path: str) -> float:
@@ -192,9 +194,10 @@ async def generate_video_fade_in(params: dict) -> str:
     output_path = params['output_path']
     duration = params['duration']
     background_image = params.get('background_image')
-    use_blur = params.get('use_blur', True)
+    use_darken = params.get('use_darken', True)
     use_gradient = params.get('use_gradient', False)
     use_center_crop = params.get('use_center_crop', True)
+    thumbnail_crop_mode = params.get('thumbnail_crop_mode', 'square')
     width = params.get('width', 1080)
     height = params.get('height', 1920)
     
@@ -213,23 +216,40 @@ async def generate_video_fade_in(params: dict) -> str:
         # 배경 이미지가 있는 경우
         is_shorts = width < height  # 쇼츠 형식인지 확인
         
-        if is_shorts and use_center_crop:
-            # 쇼츠용 세로 중앙 크롭 (16:9 영상에서 9:16 부분 추출)
-            # 원본 영상의 세로 높이를 기준으로 9:16 비율로 중앙 크롭
-            # crop=width:height:x:y (x,y는 자동 중앙 정렬)
-            filter_str = f"[0:v]crop='min(iw,ih*9/16)':'ih',scale={width}:{height},setsar=1"
-            logger.info("[FFmpeg] Using center crop for shorts format")
+        if is_shorts:
+            # thumbnailCropMode 우선 적용, use_center_crop은 하위 호환성을 위해 유지
+            if thumbnail_crop_mode == "vertical" or (thumbnail_crop_mode == "square" and use_center_crop):
+                # vertical 모드: 쇼츠용 세로 중앙 크롭 (16:9 영상에서 9:16 부분 추출)
+                filter_str = f"[0:v]crop='min(iw,ih*9/16)':'ih',scale={width}:{height},setsar=1"
+                logger.info("[FFmpeg] Using 9:16 vertical crop for shorts format")
+            elif thumbnail_crop_mode == "original":
+                # original 모드: 원본 비율 유지하며 중앙 배치
+                filter_str = f"[0:v]scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1"
+                logger.info("[FFmpeg] Using original aspect ratio for shorts format")
+            else:
+                # square 모드 (기본값): 1:1 정사각형 중앙 크롭
+                filter_str = f"[0:v]crop='min(iw,ih)':'min(iw,ih)',scale={width}:{width},pad={width}:{height}:0:(oh-ih)/2:black,setsar=1"
+                logger.info("[FFmpeg] Using 1:1 square center crop for shorts format (default)")
         else:
             # 유튜브 형식: 전체 이미지를 축소하여 중앙 배치
             filter_str = f"[0:v]scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1"
             logger.info("[FFmpeg] Using full image with padding for youtube format")
         
-        logger.info(f"[FFmpeg] Background effects - blur: {use_blur}, gradient: {use_gradient}, center_crop: {use_center_crop}")
+        logger.info(f"[FFmpeg] Background effects - darken: {use_darken}, gradient: {use_gradient}, center_crop: {use_center_crop}, crop_mode: {thumbnail_crop_mode}")
         
-        if use_blur:
-            # eq 필터를 사용한 밝기 조정 (brightness=-0.7 = 70% 어둡게)
-            filter_str += ",eq=brightness=-0.7"
-            logger.info("[FFmpeg] Applied darkening effect (brightness -70%)")
+        if use_darken:
+            # 텍스트 영역에만 반투명 검은색 오버레이 적용 (텍스트 가독성 향상)
+            # 양쪽 10% 마진 적용 (박스 너비 = 전체 너비의 80%)
+            margin = int(width * 0.1)
+            box_width = int(width * 0.8)
+            
+            # 상단 제목 영역 (0 ~ 25%)
+            filter_str += f",drawbox={margin}:0:{box_width}:{int(height*0.25)}:black@0.4:t=fill"
+            # 중앙 텍스트 영역 (35% ~ 65%)
+            filter_str += f",drawbox={margin}:{int(height*0.35)}:{box_width}:{int(height*0.3)}:black@0.5:t=fill"
+            # 약간의 대비 증가로 선명도 향상
+            filter_str += ",eq=contrast=1.05:saturation=0.95"
+            logger.info("[FFmpeg] Applied text-friendly overlay with preserved image quality")
         
         if use_gradient:
             # 선형 그라데이션: 여러 개의 반투명 박스를 겹쳐서 점진적 효과 생성
@@ -397,13 +417,15 @@ async def create_intro_video(request: IntroVideoRequest):
             'width': 1920 if request.format == 'youtube' else 1080,
             'height': 1080 if request.format == 'youtube' else 1920,
             'background_image': background_image,
-            'use_blur': request.useBlur,
+            'use_darken': request.useDarken if request.useBlur is None else request.useBlur,  # 하위 호환성
             'use_gradient': request.useGradient,
-            'use_center_crop': request.useCenterCrop
+            'use_center_crop': request.useCenterCrop,
+            'thumbnail_crop_mode': request.thumbnailCropMode
         }
         
         logger.info(f"[FFmpeg] 비디오 파라미터: format={request.format}, duration={audio_duration:.2f}s, resolution={video_params['width']}x{video_params['height']}")
-        logger.info(f"[FFmpeg] 배경 효과: background_image={background_image is not None}, use_blur={request.useBlur}, use_gradient={request.useGradient}")
+        actual_darken = request.useDarken if request.useBlur is None else request.useBlur
+        logger.info(f"[FFmpeg] 배경 효과: background_image={background_image is not None}, use_darken={actual_darken}, use_gradient={request.useGradient}")
         
         # 템플릿에 따른 비디오 생성
         if request.template == "fade_in" or (request.template in ["shorts_thumbnail", "youtube_thumbnail"] and background_image):
