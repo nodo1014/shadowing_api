@@ -18,7 +18,7 @@ SUBTITLE_STYLES = {
         "alignment": 2,  # Bottom center
         "margin_l": 50,
         "margin_r": 50,
-        "margin_v": 420  # FHD 기준 하단 여백 (420px 위로 - 50px 더 위로 이동)
+        "margin_v": 520  # FHD 기준 하단 여백 (520px 위로)
     },
     "korean": {
         "font_name": "Noto Sans CJK KR",
@@ -33,22 +33,22 @@ SUBTITLE_STYLES = {
         "alignment": 2,  # Bottom center
         "margin_l": 50,
         "margin_r": 50,
-        "margin_v": 170  # FHD 기준 하단 여백 (170px 위로, 영어와 200px 간격)
+        "margin_v": 300  # FHD 기준 하단 여백 (300px 위로)
     },
     "note": {
         "font_name": "Noto Sans CJK KR",
         "font_size": 70,  # FHD 기준 적정 크기
         "bold": True,  # Bold for maximum thickness
-        "primary_color": "&HFFFFFF&",  # White (BGR: FFFFFF)
+        "primary_color": "&HB469FF&",  # Hot Pink (BGR: B469FF = FF69B4 in RGB)
         "secondary_color": "&H000000FF",
         "outline_color": "&H000000&",  # Black outline
         "back_color": "&H00000000",
         "outline": 3,  # 두꺼운 테두리
         "shadow": 0,  # No shadow for clean look
-        "alignment": 5,  # Center (5 = center)
+        "alignment": 2,  # Bottom center
         "margin_l": 80,  # FHD 기준 좌측 여백
         "margin_r": 80,
-        "margin_v": 50  # FHD 기준 하단 여백
+        "margin_v": 100  # FHD 기준 하단 여백
     },
     "label": {
         "font_name": "Noto Sans CJK KR",
