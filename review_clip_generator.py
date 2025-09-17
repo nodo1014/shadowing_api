@@ -10,6 +10,9 @@ import asyncio
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from edge_tts_util import EdgeTTSGenerator
+import sys
+sys.path.append(str(Path(__file__).parent))
+from api.routes.settings import load_settings
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +21,18 @@ class ReviewClipGenerator:
     """복습 클립 생성기"""
     
     def __init__(self):
-        # 영어는 Aria 음성, 속도 약간 느리게 (-10%)
-        self.tts_generator = EdgeTTSGenerator(voice='en-US-AriaNeural', rate='-10%')
+        # 설정에서 TTS 구성 가져오기
+        settings = load_settings()
+        tts_settings = settings.get("tts", {})
+        
+        # 속도를 Edge TTS 형식으로 변환
+        speed = tts_settings.get('speed', -10)  # 기본값 -10 (복습용 느린 속도)
+        speed_percent = f"{'+' if speed >= 0 else ''}{speed}%"
+        
+        # 영어 음성 설정 사용
+        voice = tts_settings.get("voice_english", "en-US-AriaNeural")
+        
+        self.tts_generator = EdgeTTSGenerator(voice=voice, rate=speed_percent)
         
     async def create_review_clip(self, clips_data: List[Dict], output_path: str,
                                 title: str = "스피드 복습", template_number: int = 11,

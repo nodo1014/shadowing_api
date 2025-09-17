@@ -19,7 +19,8 @@
                 <button class="nav-item" data-page="single">단일 클립 생성</button>
                 <button class="nav-item" data-page="batch">배치 클립 생성</button>
                 <button class="nav-item" data-page="templates">템플릿 가이드</button>
-                <button class="nav-item" data-page="settings">설정</button>
+                <button class="nav-item" data-page="youtube-settings">YouTube 설정</button>
+                <button class="nav-item" data-page="render-settings">렌더링 설정</button>
                 <button class="nav-item" data-page="admin">관리자</button>
                 <a href="/viewer/" class="nav-item" style="text-decoration: none; text-align: center;">📺 유튜브 뷰어</a>
                 <a href="/restful" class="nav-item" style="text-decoration: none; text-align: center;">RESTful API</a>
@@ -393,11 +394,11 @@
                 </div>
             </div>
 
-            <!-- 설정 페이지 -->
-            <div class="page" id="settings-page">
+            <!-- YouTube 설정 페이지 -->
+            <div class="page" id="youtube-settings-page">
                 <div class="page-header">
-                    <h1 class="page-title">설정</h1>
-                    <p class="page-subtitle">YouTube API 및 시스템 설정을 관리합니다</p>
+                    <h1 class="page-title">🎥 YouTube 설정</h1>
+                    <p class="page-subtitle">YouTube API 및 계정 연결을 관리합니다</p>
                 </div>
 
                 <div class="settings-container">
@@ -451,21 +452,169 @@
                         <div id="youtube-auth-status"></div>
                     </div>
 
-                    <!-- 추가 설정 섹션 (향후 확장용) -->
+                </div>
+            </div>
+
+            <!-- 렌더링 설정 페이지 -->
+            <div class="page" id="render-settings-page">
+                <div class="page-header">
+                    <h1 class="page-title">🎬 렌더링 설정</h1>
+                    <p class="page-subtitle">비디오 품질, TTS 음성, 자막 스타일 등을 설정합니다</p>
+                </div>
+
+                <div class="settings-container">
+                    <!-- TTS 설정 -->
                     <div class="settings-section">
-                        <h2>시스템 설정</h2>
-                        <div class="settings-item">
-                            <label>
-                                <input type="checkbox" id="auto-upload" disabled>
-                                완료된 작업 자동 업로드 (준비중)
-                            </label>
+                        <div class="settings-subsection">
+                            <h3>🎤 TTS 설정</h3>
+                            <div class="settings-grid">
+                                <div class="form-group">
+                                    <label for="render-voice-korean">한국어 음성</label>
+                                    <select id="render-voice-korean">
+                                        <option value="ko-KR-SunHiNeural">Sun-Hi (여성)</option>
+                                        <option value="ko-KR-InJoonNeural">InJoon (남성)</option>
+                                        <option value="ko-KR-BongJinNeural">BongJin (남성)</option>
+                                        <option value="ko-KR-JiMinNeural">JiMin (여성)</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="render-voice-english">영어 음성</label>
+                                    <select id="render-voice-english">
+                                        <option value="en-US-AriaNeural">Aria (여성)</option>
+                                        <option value="en-US-JennyNeural">Jenny (여성)</option>
+                                        <option value="en-US-GuyNeural">Guy (남성)</option>
+                                        <option value="en-US-EricNeural">Eric (남성)</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="render-tts-speed">속도: <span id="render-speed-value">0%</span></label>
+                                    <input type="range" id="render-tts-speed" min="-50" max="50" value="0" class="range-input">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="render-tts-volume">볼륨: <span id="render-volume-value">100%</span></label>
+                                    <input type="range" id="render-tts-volume" min="0" max="100" value="100" class="range-input">
+                                </div>
+                            </div>
                         </div>
-                        <div class="settings-item">
-                            <label>
-                                <input type="checkbox" id="delete-after-upload" disabled>
-                                업로드 후 로컬 파일 삭제 (준비중)
-                            </label>
+                    </div>
+                    
+                    <!-- 비디오 설정 -->
+                    <div class="settings-section">
+                        <div class="settings-subsection">
+                            <h3>🎥 비디오 설정</h3>
+                            <div class="settings-grid">
+                                <div class="form-group">
+                                    <label for="render-video-crf">품질 (CRF)</label>
+                                    <input type="number" id="render-video-crf" min="16" max="28" value="16">
+                                    <small>낮을수록 고품질 (16-28)</small>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="render-video-preset">인코딩 속도</label>
+                                    <select id="render-video-preset">
+                                        <option value="ultrafast">초고속</option>
+                                        <option value="fast">빠름</option>
+                                        <option value="medium" selected>보통</option>
+                                        <option value="slow">느림</option>
+                                        <option value="veryslow">매우 느림</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="render-video-resolution">해상도</label>
+                                    <select id="render-video-resolution">
+                                        <option value="original">원본</option>
+                                        <option value="720p">720p</option>
+                                        <option value="1080p">1080p</option>
+                                        <option value="4k">4K</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="render-video-framerate">프레임레이트</label>
+                                    <select id="render-video-framerate">
+                                        <option value="24">24 fps</option>
+                                        <option value="30" selected>30 fps</option>
+                                        <option value="60">60 fps</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
+                    </div>
+                    
+                    <!-- 자막 설정 -->
+                    <div class="settings-section">
+                        <div class="settings-subsection">
+                            <h3>📝 자막 설정</h3>
+                            <div class="settings-grid">
+                                <div class="form-group">
+                                    <label for="render-subtitle-size-english">영어 자막 크기</label>
+                                    <input type="number" id="render-subtitle-size-english" min="20" max="100" value="60">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="render-subtitle-size-korean">한글 자막 크기</label>
+                                    <input type="number" id="render-subtitle-size-korean" min="20" max="100" value="50">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="render-subtitle-color-english">영어 자막 색상</label>
+                                    <input type="color" id="render-subtitle-color-english" value="#FFFFFF">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="render-subtitle-color-korean">한글 자막 색상</label>
+                                    <input type="color" id="render-subtitle-color-korean" value="#FFD700">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 쇼츠 설정 -->
+                    <div class="settings-section">
+                        <div class="settings-subsection">
+                            <h3>📱 쇼츠 설정</h3>
+                            <div class="settings-grid">
+                                <div class="form-group">
+                                    <label for="render-shorts-aspect">크롭 방식</label>
+                                    <select id="render-shorts-aspect">
+                                        <option value="center">중앙 크롭</option>
+                                        <option value="origin">원본 비율</option>
+                                        <option value="top">상단 기준</option>
+                                        <option value="bottom">하단 기준</option>
+                                        <option value="face">얼굴 인식</option>
+                                        <option value="zoom">80% 확대</option>
+                                        <option value="wide">와이드 크롭</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="render-thumbnail-darken">썸네일 어둡게: <span id="render-darken-value">10%</span></label>
+                                    <input type="range" id="render-thumbnail-darken" min="0" max="100" value="10" class="range-input">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="render-gap-duration">클립 간격 (초)</label>
+                                    <input type="number" id="render-gap-duration" min="0" max="5" step="0.5" value="1.5">
+                                </div>
+                                
+                                <div class="form-group checkbox-wrapper">
+                                    <label>
+                                        <input type="checkbox" id="render-show-title" checked>
+                                        제목 표시
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-actions">
+                        <button class="submit-btn" onclick="saveRenderingSettings()">렌더링 설정 저장</button>
+                        <button class="btn btn-secondary" onclick="loadRenderingSettings()">설정 불러오기</button>
+                        <button class="btn btn-danger" onclick="resetRenderingSettings()">기본값 복원</button>
                     </div>
                 </div>
             </div>

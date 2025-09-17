@@ -12,6 +12,7 @@ from .admin import router as admin_router
 from .youtube_viewer import router as youtube_viewer_router
 from .file_management import router as file_management_router
 from .intro import router as intro_router
+from .settings import router as settings_router
 
 __all__ = [
     'health_router',
@@ -24,5 +25,6 @@ __all__ = [
     'admin_router',
     'youtube_viewer_router',
     'file_management_router',
-    'intro_router'
+    'intro_router',
+    'settings_router'
 ]

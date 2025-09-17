@@ -12,23 +12,31 @@ import subprocess
 import json
 import re
 from datetime import datetime
+from api.routes.settings import load_settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["intro"])
 
-# TTS Configuration
-TTS_CONFIG = {
-    "english": {
-        "voice": "en-US-AriaNeural",
-        "rate": "+15%",
-        "volume": "+0%"
-    },
-    "korean": {
-        "voice": "ko-KR-SunHiNeural",
-        "rate": "+10%",
-        "volume": "+0%"
+def get_tts_config():
+    """설정에서 TTS 구성 가져오기"""
+    settings = load_settings()
+    tts_settings = settings.get("tts", {})
+    
+    # 속도와 피치를 Edge TTS 형식으로 변환
+    speed_percent = f"{'+' if tts_settings.get('speed', 0) >= 0 else ''}{tts_settings.get('speed', 0)}%"
+    
+    return {
+        "english": {
+            "voice": tts_settings.get("voice_english", "en-US-AriaNeural"),
+            "rate": speed_percent,
+            "volume": f"+{100 - tts_settings.get('volume', 100)}%" if tts_settings.get('volume', 100) < 100 else "+0%"
+        },
+        "korean": {
+            "voice": tts_settings.get("voice_korean", "ko-KR-SunHiNeural"),
+            "rate": speed_percent,
+            "volume": f"+{100 - tts_settings.get('volume', 100)}%" if tts_settings.get('volume', 100) < 100 else "+0%"
+        }
     }
-}
 
 # Font paths
 FONT_PATHS = {
@@ -60,7 +68,8 @@ class IntroVideoRequest(BaseModel):
 
 async def generate_tts(text: str, language: str, output_path: str) -> float:
     """TTS 생성 함수"""
-    config = TTS_CONFIG.get(language, TTS_CONFIG["english"])
+    tts_config = get_tts_config()
+    config = tts_config.get(language, tts_config["english"])
     
     logger.info(f"[TTS] Generating TTS for: {text}")
     

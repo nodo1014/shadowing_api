@@ -46,7 +46,8 @@ from api.routes import (
     admin_router,
     youtube_viewer_router,
     file_management_router,
-    intro_router
+    intro_router,
+    settings_router
 )
 from api.routes.files import router as files_router
 
@@ -124,6 +125,7 @@ app.include_router(admin_router)
 app.include_router(youtube_viewer_router)
 app.include_router(file_management_router)
 app.include_router(intro_router)
+app.include_router(settings_router)
 app.include_router(files_router)
 
 # Startup event

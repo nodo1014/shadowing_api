@@ -129,11 +129,193 @@ function clearYouTubeSettings() {
     showInfo('설정이 초기화되었습니다. 저장 버튼을 클릭하여 적용하세요.');
 }
 
+// 렌더링 설정 관련 함수들
+async function loadRenderingSettings() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/settings`);
+        if (response.ok) {
+            const settings = await response.json();
+            
+            // TTS 설정
+            document.getElementById('render-voice-korean').value = settings.tts.voice_korean;
+            document.getElementById('render-voice-english').value = settings.tts.voice_english;
+            document.getElementById('render-tts-speed').value = settings.tts.speed;
+            document.getElementById('render-tts-volume').value = settings.tts.volume;
+            
+            // 비디오 설정
+            document.getElementById('render-video-crf').value = settings.video.crf;
+            document.getElementById('render-video-preset').value = settings.video.preset;
+            document.getElementById('render-video-resolution').value = settings.video.resolution;
+            document.getElementById('render-video-framerate').value = settings.video.framerate;
+            
+            // 자막 설정
+            document.getElementById('render-subtitle-size-english').value = settings.subtitle.size_english;
+            document.getElementById('render-subtitle-size-korean').value = settings.subtitle.size_korean;
+            document.getElementById('render-subtitle-color-english').value = settings.subtitle.color_english;
+            document.getElementById('render-subtitle-color-korean').value = settings.subtitle.color_korean;
+            
+            // 쇼츠 설정
+            document.getElementById('render-shorts-aspect').value = settings.shorts.aspect_ratio;
+            document.getElementById('render-thumbnail-darken').value = settings.shorts.thumbnail_darken;
+            document.getElementById('render-gap-duration').value = settings.template.gap_duration;
+            document.getElementById('render-show-title').checked = settings.template.show_title;
+            
+            // Range 값 표시 업데이트
+            updateRangeValues();
+            
+            showSuccess('렌더링 설정을 불러왔습니다.');
+        }
+    } catch (error) {
+        console.error('Failed to load rendering settings:', error);
+        showError('렌더링 설정을 불러올 수 없습니다');
+    }
+}
+
+async function saveRenderingSettings() {
+    const settings = {
+        tts: {
+            voice_korean: document.getElementById('render-voice-korean').value,
+            voice_english: document.getElementById('render-voice-english').value,
+            speed: parseInt(document.getElementById('render-tts-speed').value),
+            pitch: 0, // 현재 UI에 없음
+            volume: parseInt(document.getElementById('render-tts-volume').value)
+        },
+        video: {
+            crf: parseInt(document.getElementById('render-video-crf').value),
+            preset: document.getElementById('render-video-preset').value,
+            resolution: document.getElementById('render-video-resolution').value,
+            framerate: parseInt(document.getElementById('render-video-framerate').value)
+        },
+        subtitle: {
+            font_english: "Noto Sans CJK KR",
+            font_korean: "Noto Sans CJK KR",
+            size_english: parseInt(document.getElementById('render-subtitle-size-english').value),
+            size_korean: parseInt(document.getElementById('render-subtitle-size-korean').value),
+            color_english: document.getElementById('render-subtitle-color-english').value,
+            color_korean: document.getElementById('render-subtitle-color-korean').value,
+            border_width: 3,
+            border_color: "#000000",
+            position: "bottom",
+            margin_bottom: 300
+        },
+        template: {
+            gap_duration: parseFloat(document.getElementById('render-gap-duration').value),
+            fade_effect: false,
+            show_title: document.getElementById('render-show-title').checked,
+            background_music_volume: 20
+        },
+        shorts: {
+            aspect_ratio: document.getElementById('render-shorts-aspect').value,
+            thumbnail_darken: parseInt(document.getElementById('render-thumbnail-darken').value),
+            intro_duration: 3
+        },
+        advanced: {
+            hardware_accel: "none",
+            threads: 0,
+            temp_path: "/tmp",
+            output_format: "mp4"
+        }
+    };
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/settings`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(settings)
+        });
+        
+        if (response.ok) {
+            showSuccess('렌더링 설정이 저장되었습니다.');
+        } else {
+            const error = await response.json();
+            showError('렌더링 설정 저장 실패: ' + (error.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Save rendering settings error:', error);
+        showError('렌더링 설정 저장 중 오류가 발생했습니다');
+    }
+}
+
+async function resetRenderingSettings() {
+    if (!confirm('렌더링 설정을 기본값으로 초기화하시겠습니까?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/settings/reset`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            await loadRenderingSettings();
+            showSuccess('렌더링 설정이 초기화되었습니다.');
+        } else {
+            throw new Error('설정 초기화 실패');
+        }
+    } catch (error) {
+        console.error('Reset rendering settings error:', error);
+        showError('렌더링 설정 초기화 실패: ' + error.message);
+    }
+}
+
+function updateRangeValues() {
+    // 속도 값 업데이트
+    const speedEl = document.getElementById('render-tts-speed');
+    const speedValueEl = document.getElementById('render-speed-value');
+    if (speedEl && speedValueEl) {
+        speedValueEl.textContent = speedEl.value + '%';
+    }
+    
+    // 볼륨 값 업데이트
+    const volumeEl = document.getElementById('render-tts-volume');
+    const volumeValueEl = document.getElementById('render-volume-value');
+    if (volumeEl && volumeValueEl) {
+        volumeValueEl.textContent = volumeEl.value + '%';
+    }
+    
+    // 어둡게 값 업데이트
+    const darkenEl = document.getElementById('render-thumbnail-darken');
+    const darkenValueEl = document.getElementById('render-darken-value');
+    if (darkenEl && darkenValueEl) {
+        darkenValueEl.textContent = darkenEl.value + '%';
+    }
+}
+
+// Range input 이벤트 리스너 설정
+function setupRenderingSettingsListeners() {
+    // 속도 슬라이더
+    const speedEl = document.getElementById('render-tts-speed');
+    if (speedEl) {
+        speedEl.addEventListener('input', updateRangeValues);
+    }
+    
+    // 볼륨 슬라이더
+    const volumeEl = document.getElementById('render-tts-volume');
+    if (volumeEl) {
+        volumeEl.addEventListener('input', updateRangeValues);
+    }
+    
+    // 어둡게 슬라이더
+    const darkenEl = document.getElementById('render-thumbnail-darken');
+    if (darkenEl) {
+        darkenEl.addEventListener('input', updateRangeValues);
+    }
+}
+
 // 페이지 로드 시 설정 불러오기
 document.addEventListener('DOMContentLoaded', () => {
-    // settings 페이지가 활성화될 때만 로드
-    const settingsPage = document.getElementById('settings-page');
-    if (settingsPage) {
+    // YouTube 설정 페이지
+    const youtubeSettingsPage = document.getElementById('youtube-settings-page');
+    if (youtubeSettingsPage) {
         loadYouTubeSettings();
+    }
+    
+    // 렌더링 설정 페이지
+    const renderSettingsPage = document.getElementById('render-settings-page');
+    if (renderSettingsPage) {
+        loadRenderingSettings();
+        setupRenderingSettingsListeners();
     }
 });

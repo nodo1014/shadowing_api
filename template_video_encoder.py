@@ -851,24 +851,24 @@ class TemplateVideoEncoder(VideoEncoder):
         if not os.path.exists(font_file):
             font_file = "NanumGothic"  # 폴백 폰트
         
-        # 타이틀 라인 1 (왼쪽 상단)
+        # 타이틀 라인 1, 2를 오른쪽 상단에 표시
         if self._title_line1:
             filters.append(
                 f"drawtext=text='{self._title_line1}':"
-                f"fontfile={font_file}:fontsize=40:"
+                f"fontfile={font_file}:fontsize=30:"
                 f"fontcolor=white:borderw=3:bordercolor=black:"
-                f"x=80:y=150"
+                f"x=w-text_w-80:y=150"
             )
         
-        # 타이틀 라인 2 (오른쪽 상단)
+        # 타이틀 라인 2 (타이틀 1 아래에 표시)
         if self._title_line2:
-            # 텍스트 너비를 고려한 오른쪽 정렬
-            y_offset = 150 if self._title_line1 else 200
             filters.append(
                 f"drawtext=text='{self._title_line2}':"
-                f"fontfile={font_file}:fontsize=40:"
-                f"fontcolor=#C0C0C0:borderw=3:bordercolor=black:x=w-text_w-80:y={y_offset}"
+                f"fontfile={font_file}:fontsize=30:"
+                f"fontcolor=#C0C0C0:borderw=3:bordercolor=black:"
+                f"x=w-text_w-80:y=190"
             )
+        
         
         return ",".join(filters)
     
@@ -924,9 +924,9 @@ class TemplateVideoEncoder(VideoEncoder):
                 if not os.path.exists(font_file):
                     font_file = "NanumGothic"  # 폴백 폰트
                 
-                # 자막 모드 텍스트 추가 (좌측 상단, 페이드인 효과)
-                # 해상도에 따라 폰트 크기 조정 (FHD 기준 70, 비율에 따라 조정)
-                mode_text = "drawtext=text='{}':fontfile={}:fontsize='70*min(1,min(w/1920,h/1080))':fontcolor=white@0.8:borderw=3:bordercolor=black:x='80*min(1,min(w/1920,h/1080))':y='80*min(1,min(w/1920,h/1080))':alpha='if(lt(t,0.5),t/0.5,1)'".format(mode_label, font_file)
+                # 자막 모드 텍스트 추가 (좌측 상단, 작은 골드색 폰트)
+                # 해상도에 따라 폰트 크기 조정 (FHD 기준 40, 비율에 따라 조정)
+                mode_text = "drawtext=text='{}':fontfile={}:fontsize='40*min(1,min(w/1920,h/1080))':fontcolor=#FFD700:borderw=2:bordercolor=black:x='80*min(1,min(w/1920,h/1080))':y='80*min(1,min(w/1920,h/1080))':alpha='if(lt(t,0.5),t/0.5,1)'".format(mode_label, font_file)
                 vf_filters.append(mode_text)
                 logger.info(f"Adding subtitle mode indicator '{mode_label}' for {current_template}")
         
